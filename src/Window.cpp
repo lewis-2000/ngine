@@ -1,7 +1,7 @@
 #include "Window.h"
 #include "Logger.h"
 
-namespace MaraGl
+namespace Mara
 {
     Window::Window(int width, int height, const char *title)
         : m_Width(width), m_Height(height)

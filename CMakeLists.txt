@@ -29,6 +29,7 @@ target_include_directories(${PROJECT_NAME}
     PRIVATE
         includes
         vendors/glm
+        vendors/stb       
 )
 
 target_link_libraries(${PROJECT_NAME}
@@ -36,4 +37,10 @@ target_link_libraries(${PROJECT_NAME}
         glfw
         glad
         opengl32
+)
+
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/shaders
+        $<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders
 )

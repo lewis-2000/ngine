@@ -4,7 +4,7 @@
 
 #include <GLFW/glfw3.h>
 
-namespace MaraGl
+namespace Mara
 {
     class Window
     {

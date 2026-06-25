@@ -21,6 +21,7 @@ Shader::Shader(const std::string &vertexPath, const std::string &fragmentPath)
     glAttachShader(shaderProgram, fragmentShader);
     glLinkProgram(shaderProgram);
     checkCompileErrors(shaderProgram, "PROGRAM");
+    ID = shaderProgram;
 
     // Shaders are now linked into the program, so they can be deleted
     glDeleteShader(vertexShader);
