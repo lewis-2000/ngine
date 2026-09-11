@@ -28,7 +28,7 @@ namespace Mara
 #endif
 
         // Optional: disable window resizing
-        // glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
         // 3. Create the GLFW window
         m_Window = glfwCreateWindow(m_Width, m_Height, title, nullptr, nullptr);

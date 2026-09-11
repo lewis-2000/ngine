@@ -22,6 +22,7 @@ file(GLOB_RECURSE ENGINE_SOURCES
 
 add_executable(${PROJECT_NAME}
     App.cpp
+    Mara.cpp
     ${ENGINE_SOURCES}
 )
 

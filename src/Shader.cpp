@@ -138,7 +138,8 @@ void Shader::checkCompileErrors(unsigned int shader, const std::string &type) co
         if (!success)
         {
             glGetProgramInfoLog(shader, 1024, nullptr, infoLog);
-            std::cerr << "ERROR::PROGRAM_LINKING_ERROR: " << infoLog << std::endl;
+            // std::cerr << "ERROR::PROGRAM_LINKING_ERROR: " << infoLog << std::endl;
+            Logger::runtimeError("Shader program linking error: " + std::string(infoLog));
         }
     }
     else
@@ -147,8 +148,9 @@ void Shader::checkCompileErrors(unsigned int shader, const std::string &type) co
         if (!success)
         {
             glGetShaderInfoLog(shader, 1024, nullptr, infoLog);
-            std::cerr << "ERROR::SHADER_COMPILATION_ERROR of type: " << type << "\n"
-                      << infoLog << std::endl;
+            // std::cerr << "ERROR::SHADER_COMPILATION_ERROR of type: " << type << "\n"
+            //   << infoLog << std::endl;
+            Logger::runtimeError("Shader compilation error (" + type + "): " + std::string(infoLog));
         }
     }
 }
