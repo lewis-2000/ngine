@@ -7,3 +7,16 @@
 [submodule "vendors/stb"]
 	path = vendors/stb
 	url = https://github.com/nothings/stb.git
+[submodule "vendors/imgui"]
+	path = vendors/imgui
+	url = https://github.com/ocornut/imgui.git
+	branch = docking
+[submodule "vendors/assimp"]
+	path = vendors/assimp
+	url = https://github.com/assimp/assimp.git
+[submodule "externals/tinyxml2"]
+	path = externals/tinyxml2
+	url = https://github.com/leethomason/tinyxml2.git
+[submodule "vendors/tinyxml2"]
+	path = vendors/tinyxml2
+	url = https://github.com/leethomason/tinyxml2.git
