@@ -1,1 +1,4 @@
 build/
+
+# Files too big for github size limit
+resources/models/robot/i-robot obj.obj
