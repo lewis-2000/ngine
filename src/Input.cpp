@@ -7,10 +7,18 @@ namespace MaraGl
     double Input::s_LastMouseY = 0.0;
     float Input::s_DeltaX = 0.0f;
     float Input::s_DeltaY = 0.0f;
+    float Input::s_MouseWheelDelta = 0.0f;
 
     void Input::Init(GLFWwindow *window)
     {
         s_Window = window;
+        glfwGetCursorPos(s_Window, &s_LastMouseX, &s_LastMouseY);
+        glfwSetScrollCallback(s_Window, ScrollCallback);
+    }
+
+    void Input::ScrollCallback(GLFWwindow *, double, double yOffset)
+    {
+        s_MouseWheelDelta += static_cast<float>(yOffset);
     }
 
     bool Input::IsKeyPressed(int key)
@@ -30,6 +38,7 @@ namespace MaraGl
 
         s_DeltaX = (float)(x - s_LastMouseX);
         s_DeltaY = (float)(y - s_LastMouseY);
+        s_MouseWheelDelta = 0.0f;
 
         s_LastMouseX = x;
         s_LastMouseY = y;
@@ -39,4 +48,5 @@ namespace MaraGl
     float Input::GetMouseY() { return (float)s_LastMouseY; }
     float Input::GetMouseDeltaX() { return s_DeltaX; }
     float Input::GetMouseDeltaY() { return s_DeltaY; }
+    float Input::GetMouseWheelDelta() { return s_MouseWheelDelta; }
 } // namespace MaraGl
