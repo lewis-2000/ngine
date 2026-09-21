@@ -30,7 +30,7 @@ namespace Mara
         if (m_Window)
             return;
 
-        m_Window = std::make_unique<Window>(900, 900, "NGine");
+        m_Window = std::make_unique<Window>(1920, 1080, "NGine");
         m_Window->initialize();
         m_Window->show();
         MaraGl::Input::Init(m_Window->getWindow());
@@ -54,6 +54,12 @@ namespace Mara
         m_Plane = std::make_unique<Plane>(20.0f);
         m_Editor = std::make_unique<Editor>();
 
+        m_RobotEntity = m_Scene.createEntity("robot");
+        m_Scene.transform(m_RobotEntity)->rotation.x = glm::radians(-90.0f);
+        m_Scene.transform(m_RobotEntity)->scale = glm::vec3(m_ModelScale);
+        m_GroundEntity = m_Scene.createEntity("ground");
+        m_Scene.transform(m_GroundEntity)->position.y = -0.72f;
+
         // Initialize ImGui and the editor
         m_Editor->initialize(m_Window->getWindow(), m_Robot.get());
 
@@ -71,6 +77,7 @@ namespace Mara
         m_LastFrameTime = glfwGetTime();
         while (!glfwWindowShouldClose(m_Window->getWindow()))
         {
+            m_Window->pollEvents();
             double currentTime = glfwGetTime();
             float deltaTime = static_cast<float>(currentTime - m_LastFrameTime);
             m_LastFrameTime = currentTime;
@@ -81,9 +88,9 @@ namespace Mara
                 resetCamera();
             }
             updateCamera(deltaTime);
+            m_Editor->update(deltaTime);
             renderFrame();
             glfwSwapBuffers(m_Window->getWindow());
-            m_Window->pollEvents();
         }
     }
 
@@ -117,10 +124,22 @@ namespace Mara
 
         if (viewportHovered)
             m_CameraDistance -= MaraGl::Input::GetMouseWheelDelta() * 0.75f;
-        m_CameraDistance = glm::clamp(m_CameraDistance, 1.0f, 50.0f);
 
         if (ImGui::GetIO().WantCaptureKeyboard)
             return;
+
+        if (MaraGl::Input::IsKeyPressed(GLFW_KEY_EQUAL) ||
+            MaraGl::Input::IsKeyPressed(GLFW_KEY_KP_ADD))
+        {
+            m_CameraDistance -= deltaTime * 5.0f;
+        }
+        if (MaraGl::Input::IsKeyPressed(GLFW_KEY_MINUS) ||
+            MaraGl::Input::IsKeyPressed(GLFW_KEY_KP_SUBTRACT))
+        {
+            m_CameraDistance += deltaTime * 5.0f;
+        }
+
+        m_CameraDistance = glm::clamp(m_CameraDistance, 1.0f, 50.0f);
 
         glm::vec3 forward = glm::normalize(-glm::vec3(
             std::sin(glm::radians(m_CameraYaw)),
@@ -163,11 +182,14 @@ namespace Mara
         m_Editor->beginSceneRender(m_Window->getWidth(), m_Window->getHeight());
 
         m_Shader->use();
-        glm::mat4 model = glm::scale(glm::mat4(1.0f), glm::vec3(m_ModelScale));
-        model = glm::rotate(
-            model,
-            glm::radians(-90.0f),
-            glm::vec3(1.0f, 0.0f, 0.0f));
+        const TransformComponent *robotTransform = m_Scene.transform(m_RobotEntity);
+        const TransformComponent *groundTransformComponent = m_Scene.transform(m_GroundEntity);
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, robotTransform->position);
+        model = glm::rotate(model, robotTransform->rotation.x, glm::vec3(1.0f, 0.0f, 0.0f));
+        model = glm::rotate(model, robotTransform->rotation.y, glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::rotate(model, robotTransform->rotation.z, glm::vec3(0.0f, 0.0f, 1.0f));
+        model = glm::scale(model, robotTransform->scale);
 
         float yaw = glm::radians(m_CameraYaw);
         float pitch = glm::radians(m_CameraPitch);
@@ -191,9 +213,16 @@ namespace Mara
         m_Shader->setVec3("viewPos", cameraPosition);
         m_Shader->setVec3("lightDirection", -1.0f, -1.0f, -1.0f);
         m_Shader->setVec3("lightColor", 1.0f, 1.0f, 1.0f);
-        const glm::mat4 groundTransform = glm::translate(
+        m_Shader->setVec3("ambientColor", 1.0f, 1.0f, 1.0f);
+        m_Shader->setFloat("ambientStrength", 0.3f);
+        glm::mat4 groundTransform = glm::translate(
             glm::mat4(1.0f),
-            glm::vec3(0.0f, -0.72f, 0.0f));
+            groundTransformComponent->position);
+        groundTransform = glm::rotate(
+            groundTransform,
+            groundTransformComponent->rotation.x,
+            glm::vec3(1.0f, 0.0f, 0.0f));
+        groundTransform = glm::scale(groundTransform, groundTransformComponent->scale);
         m_Plane->Draw(*m_Shader, groundTransform);
         m_Robot->Draw(*m_Shader, model);
 

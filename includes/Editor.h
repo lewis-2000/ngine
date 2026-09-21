@@ -14,9 +14,10 @@ namespace Mara
         Editor() = default;
         ~Editor();
 
-        void initialize(GLFWwindow *window, const Robot *robot = nullptr);
+        void initialize(GLFWwindow *window, Robot *robot = nullptr);
 
         void beginFrame();
+        void update(float deltaTime);
         void draw();
         void endFrame();
 
@@ -34,7 +35,9 @@ namespace Mara
         void drawScene();
         void drawViewport();
         void drawInspector();
+        void drawMotion();
         void drawConsole();
+        void setSimulationTime(float time);
 
     private:
         bool m_Initialized = false;
@@ -42,7 +45,10 @@ namespace Mara
         bool m_ShowGrid = true;
         bool m_ViewportHovered = false;
         bool m_CameraResetRequested = false;
-        const Robot *m_Robot = nullptr;
+        Robot *m_Robot = nullptr;
+        float m_AnimationTime = 0.0f;
+        float m_AnimationDuration = 10.0f;
+        bool m_LoopAnimation = true;
 
         float m_Position[3] = {0.0f, 0.0f, 0.0f};
         float m_Rotation[3] = {0.0f, 0.0f, 0.0f};

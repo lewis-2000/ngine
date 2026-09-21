@@ -38,7 +38,6 @@ namespace MaraGl
 
         s_DeltaX = (float)(x - s_LastMouseX);
         s_DeltaY = (float)(y - s_LastMouseY);
-        s_MouseWheelDelta = 0.0f;
 
         s_LastMouseX = x;
         s_LastMouseY = y;
@@ -48,5 +47,10 @@ namespace MaraGl
     float Input::GetMouseY() { return (float)s_LastMouseY; }
     float Input::GetMouseDeltaX() { return s_DeltaX; }
     float Input::GetMouseDeltaY() { return s_DeltaY; }
-    float Input::GetMouseWheelDelta() { return s_MouseWheelDelta; }
+    float Input::GetMouseWheelDelta()
+    {
+        const float wheelDelta = s_MouseWheelDelta;
+        s_MouseWheelDelta = 0.0f;
+        return wheelDelta;
+    }
 } // namespace MaraGl

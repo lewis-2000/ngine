@@ -27,8 +27,7 @@ namespace Mara
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // required on macOS
 #endif
 
-        // Optional: disable window resizing
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+        glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
         // 3. Create the GLFW window
         m_Window = glfwCreateWindow(m_Width, m_Height, title, nullptr, nullptr);
@@ -41,8 +40,13 @@ namespace Mara
             Logger::runtimeError("Failed to create GLFW window");
         }
 
+        glfwSetWindowUserPointer(m_Window, this);
+        glfwSetFramebufferSizeCallback(m_Window, framebufferSizeCallback);
+
         // Make context current
         glfwMakeContextCurrent(m_Window);
+
+        glfwGetFramebufferSize(m_Window, &m_Width, &m_Height);
 
         // Initialize GLAD
         if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -80,9 +84,19 @@ namespace Mara
         if (!m_Window)
             return;
 
-        glfwMaximizeWindow(m_Window);
         glfwShowWindow(m_Window);
         glfwFocusWindow(m_Window);
+    }
+
+    void Window::framebufferSizeCallback(GLFWwindow *window, int width, int height)
+    {
+        auto *instance = static_cast<Window *>(glfwGetWindowUserPointer(window));
+        if (!instance)
+            return;
+
+        instance->m_Width = width;
+        instance->m_Height = height;
+        glViewport(0, 0, width, height);
     }
 
 }

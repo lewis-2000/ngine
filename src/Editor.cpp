@@ -18,7 +18,7 @@ namespace Mara
         shutdown();
     }
 
-    void Editor::initialize(GLFWwindow *window, const Robot *robot)
+    void Editor::initialize(GLFWwindow *window, Robot *robot)
     {
         if (m_Initialized)
             return;
@@ -63,6 +63,32 @@ namespace Mara
         ImGui_ImplOpenGL3_Init("#version 330");
 
         m_Initialized = true;
+    }
+
+    void Editor::update(float deltaTime)
+    {
+        if (!m_Robot || !m_Robot->isLoaded() || !m_SimulationRunning)
+            return;
+
+        setSimulationTime(m_AnimationTime + deltaTime);
+    }
+
+    void Editor::setSimulationTime(float time)
+    {
+        if (m_LoopAnimation && m_AnimationDuration > 0.0f)
+        {
+            time = std::fmod(time, m_AnimationDuration);
+            if (time < 0.0f)
+                time += m_AnimationDuration;
+        }
+        else
+        {
+            time = std::clamp(time, 0.0f, m_AnimationDuration);
+        }
+
+        m_AnimationTime = time;
+        if (m_Robot && m_Robot->isLoaded())
+            m_Robot->updateDemoAnimation(m_AnimationTime);
     }
 
     void Editor::setupDockspace()
@@ -173,6 +199,10 @@ namespace Mara
             rightNode);
 
         ImGui::DockBuilderDockWindow(
+            "Motion",
+            rightNode);
+
+        ImGui::DockBuilderDockWindow(
             "Viewport",
             finalViewportNode);
 
@@ -206,6 +236,7 @@ namespace Mara
         drawScene();
         drawViewport();
         drawInspector();
+        drawMotion();
         drawConsole();
     }
 
@@ -327,11 +358,29 @@ namespace Mara
 
         if (width > 0 && height > 0)
         {
+            const float sceneAspect =
+                static_cast<float>(m_SceneFramebuffer.getWidth()) /
+                static_cast<float>(m_SceneFramebuffer.getHeight());
+            ImVec2 imageSize = viewportSize;
+
+            if (viewportSize.x / viewportSize.y > sceneAspect)
+                imageSize.x = viewportSize.y * sceneAspect;
+            else
+                imageSize.y = viewportSize.x / sceneAspect;
+
+            const ImVec2 imageOffset(
+                (viewportSize.x - imageSize.x) * 0.5f,
+                (viewportSize.y - imageSize.y) * 0.5f);
+            const ImVec2 cursorPosition = ImGui::GetCursorPos();
+            ImGui::SetCursorPos(ImVec2(
+                cursorPosition.x + imageOffset.x,
+                cursorPosition.y + imageOffset.y));
+
             ImGui::Image(
                 static_cast<ImTextureID>(
                     static_cast<uintptr_t>(
                         m_SceneFramebuffer.getColorTexture())),
-                viewportSize,
+                imageSize,
                 ImVec2(0, 1),
                 ImVec2(1, 0));
 
@@ -340,7 +389,8 @@ namespace Mara
             ImGui::SetCursorPos(ImVec2(18.0f, 58.0f));
             ImGui::BeginChild("ViewportOverlay", ImVec2(190.0f, 86.0f), true);
             ImGui::TextDisabled("CAMERA");
-            ImGui::Text("RMB orbit | MMB pan | Wheel zoom");
+            ImGui::Text("RMB orbit | MMB pan");
+            ImGui::Text("Wheel or +/- zoom");
             ImGui::Text("Z/X move along world Z");
             ImGui::Text("Grid  %s", m_ShowGrid ? "ON" : "OFF");
             ImGui::Text("Origin  (0, 0, 0)");
@@ -396,6 +446,95 @@ namespace Mara
             ImGui::Text("camera");
             ImGui::SameLine(ImGui::GetContentRegionAvail().x - 40.0f);
             ImGui::TextColored(ImVec4(0.30f, 0.78f, 0.70f, 1.0f), "ON");
+        }
+
+        ImGui::End();
+    }
+
+    void Editor::drawMotion()
+    {
+        ImGui::Begin("Motion");
+
+        ImGui::TextUnformatted("JOINT CONTROLS");
+        ImGui::Separator();
+        ImGui::TextDisabled("TIMELINE");
+        if (ImGui::Button(m_SimulationRunning ? "Pause" : "Play"))
+            m_SimulationRunning = !m_SimulationRunning;
+        ImGui::SameLine();
+        if (ImGui::Button("Step"))
+        {
+            m_SimulationRunning = false;
+            setSimulationTime(m_AnimationTime + (1.0f / 60.0f));
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Reset"))
+        {
+            m_SimulationRunning = false;
+            setSimulationTime(0.0f);
+        }
+
+        ImGui::Checkbox("Loop", &m_LoopAnimation);
+        const bool timelineChanged = ImGui::SliderFloat(
+            "Time",
+            &m_AnimationTime,
+            0.0f,
+            m_AnimationDuration,
+            "%.2f s");
+        if (timelineChanged)
+        {
+            m_SimulationRunning = false;
+            setSimulationTime(m_AnimationTime);
+        }
+        ImGui::Text("%.2f / %.2f seconds", m_AnimationTime, m_AnimationDuration);
+        ImGui::Separator();
+        ImGui::TextDisabled(
+            m_SimulationRunning ? "Procedural playback running" : "Manual pose editing");
+
+        if (!m_Robot || !m_Robot->isLoaded())
+        {
+            ImGui::TextDisabled("No robot loaded");
+        }
+        else
+        {
+            for (const auto &[jointName, joint] : m_Robot->data().joints)
+            {
+                if (joint.type == UrdfJoint::Type::FIXED)
+                    continue;
+
+                float position = m_Robot->jointPosition(jointName);
+                float lower = -3.14159f;
+                float upper = 3.14159f;
+                const char *format = "%.2f rad";
+
+                if (joint.type == UrdfJoint::Type::PRISMATIC)
+                {
+                    lower = -1.0f;
+                    upper = 1.0f;
+                    format = "%.2f m";
+                }
+                if (joint.limit.has_limit)
+                {
+                    lower = static_cast<float>(joint.limit.lower);
+                    upper = static_cast<float>(joint.limit.upper);
+                }
+
+                if (ImGui::SliderFloat(
+                        jointName.c_str(),
+                        &position,
+                        lower,
+                        upper,
+                        format))
+                {
+                    m_Robot->setJointPosition(jointName, position);
+                    m_SimulationRunning = false;
+                }
+            }
+
+            if (ImGui::Button("Reset joints"))
+            {
+                m_Robot->resetJointPositions();
+                setSimulationTime(0.0f);
+            }
         }
 
         ImGui::End();

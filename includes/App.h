@@ -8,6 +8,7 @@
 #include "Window.h"
 #include "Editor.h"
 #include "Shader.h"
+#include "Scene.h"
 
 class Shader;
 
@@ -36,6 +37,9 @@ namespace Mara
         std::unique_ptr<Robot> m_Robot;
         std::unique_ptr<Plane> m_Plane;
         std::unique_ptr<Editor> m_Editor;
+        Scene m_Scene;
+        Entity m_RobotEntity = NullEntity;
+        Entity m_GroundEntity = NullEntity;
 
         float m_ModelScale = 1.0f;
         float m_CameraDistance = 8.0f;

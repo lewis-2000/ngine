@@ -24,6 +24,8 @@ namespace Mara
         GLFWwindow *getWindow() const { return m_Window; }
 
     private:
+        static void framebufferSizeCallback(GLFWwindow *window, int width, int height);
+
         GLFWwindow *m_Window = nullptr;
         int m_Width = 0;
         int m_Height = 0;

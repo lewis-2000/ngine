@@ -11,6 +11,7 @@ bool Robot::LoadFromUrdf(const std::filesystem::path &urdfPath)
     m_RootLink.clear();
     m_Robot = {};
     m_LinkModels.clear();
+    m_JointPositions.clear();
 
     if (!m_Parser.ParseFile(urdfPath.string(), m_Robot))
     {
@@ -25,6 +26,9 @@ bool Robot::LoadFromUrdf(const std::filesystem::path &urdfPath)
         m_LastError = "URDF does not contain a unique root link";
         return false;
     }
+
+    for (const auto &[jointName, joint] : m_Robot.joints)
+        m_JointPositions[jointName] = 0.0f;
 
     for (const auto &[linkName, link] : m_Robot.links)
     {
@@ -62,6 +66,60 @@ bool Robot::LoadFromUrdf(const std::filesystem::path &urdfPath)
     return true;
 }
 
+void Robot::setJointPosition(const std::string &jointName, float position)
+{
+    const auto jointIt = m_Robot.joints.find(jointName);
+    if (jointIt == m_Robot.joints.end())
+        return;
+
+    const UrdfJoint &joint = jointIt->second;
+    if (joint.limit.has_limit)
+    {
+        position = glm::clamp(
+            position,
+            static_cast<float>(joint.limit.lower),
+            static_cast<float>(joint.limit.upper));
+    }
+
+    m_JointPositions[jointName] = position;
+}
+
+float Robot::jointPosition(const std::string &jointName) const
+{
+    const auto positionIt = m_JointPositions.find(jointName);
+    return positionIt != m_JointPositions.end() ? positionIt->second : 0.0f;
+}
+
+void Robot::resetJointPositions()
+{
+    for (const auto &[jointName, joint] : m_Robot.joints)
+        setJointPosition(jointName, 0.0f);
+}
+
+void Robot::updateDemoAnimation(float elapsedTime)
+{
+    for (const auto &[jointName, joint] : m_Robot.joints)
+    {
+        if (joint.type == UrdfJoint::Type::FIXED)
+            continue;
+
+        float amplitude = 0.5f;
+        if (joint.limit.has_limit)
+        {
+            const float lower = static_cast<float>(joint.limit.lower);
+            const float upper = static_cast<float>(joint.limit.upper);
+            amplitude = (upper - lower) * 0.5f;
+            setJointPosition(
+                jointName,
+                (lower + upper) * 0.5f + amplitude * std::sin(elapsedTime));
+        }
+        else
+        {
+            setJointPosition(jointName, amplitude * std::sin(elapsedTime));
+        }
+    }
+}
+
 std::filesystem::path Robot::resolveMeshPath(const std::string &meshFilename) const
 {
     const std::string resolved = m_Parser.ResolveMeshPath(meshFilename);
@@ -88,7 +146,28 @@ glm::mat4 Robot::linkTransform(const std::string &linkName) const
     for (const auto &[jointName, joint] : m_Robot.joints)
     {
         if (joint.child_link == linkName)
-            return linkTransform(joint.parent_link) * originTransform(joint.origin);
+        {
+            glm::mat4 transform =
+                linkTransform(joint.parent_link) * originTransform(joint.origin);
+            const float position = jointPosition(jointName);
+
+            if (joint.type == UrdfJoint::Type::REVOLUTE ||
+                joint.type == UrdfJoint::Type::CONTINUOUS)
+            {
+                transform = glm::rotate(
+                    transform,
+                    position,
+                    glm::normalize(joint.axis));
+            }
+            else if (joint.type == UrdfJoint::Type::PRISMATIC)
+            {
+                transform = glm::translate(
+                    transform,
+                    glm::normalize(joint.axis) * position);
+            }
+
+            return transform;
+        }
     }
 
     return glm::mat4(1.0f);

@@ -22,6 +22,11 @@ public:
     const std::string &lastError() const { return m_LastError; }
     const UrdfRobot &data() const { return m_Robot; }
 
+    void setJointPosition(const std::string &jointName, float position);
+    float jointPosition(const std::string &jointName) const;
+    void resetJointPositions();
+    void updateDemoAnimation(float elapsedTime);
+
     std::filesystem::path resolveMeshPath(const std::string &meshFilename) const;
     void Draw(Shader &shader, const glm::mat4 &robotTransform) const;
 
@@ -40,6 +45,7 @@ private:
     UrdfParser m_Parser;
     UrdfRobot m_Robot;
     std::unordered_map<std::string, LinkModels> m_LinkModels;
+    std::unordered_map<std::string, float> m_JointPositions;
     std::filesystem::path m_UrdfDirectory;
     std::string m_RootLink;
     std::string m_LastError;
