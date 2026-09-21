@@ -52,7 +52,7 @@ git --version
 Clone the repository recursively so Git also downloads any submodules:
 
 ```bash
-git clone --recurse-submodules <https://github.com/lewis-2000/ngine> ngine
+git clone --recurse-submodules https://github.com/lewis-2000/ngine
 cd ngine
 ```
 
