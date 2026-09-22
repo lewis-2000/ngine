@@ -2,19 +2,15 @@
 
 #include <iostream>
 #include <memory>
-#include <cmath>
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-#include <glm/gtc/matrix_transform.hpp>
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
-#include <glm/gtc/type_ptr.hpp>
 
 #include "Input.h"
-#include "Shader.h"
 
 namespace Mara
 {
@@ -42,7 +38,6 @@ namespace Mara
         glfwGetFramebufferSize(m_Window->getWindow(), &framebufferWidth, &framebufferHeight);
         glViewport(0, 0, framebufferWidth, framebufferHeight);
 
-        m_Shader = std::make_unique<Shader>("shaders/scene.vert", "shaders/scene.frag");
         m_Robot = std::make_unique<Robot>();
         if (!m_Robot->LoadFromUrdf("resources/models/robot/urdf/humanoid.urdf"))
             std::cerr << "Failed to load robot: " << m_Robot->lastError() << '\n';
@@ -62,6 +57,12 @@ namespace Mara
 
         // Initialize ImGui and the editor
         m_Editor->initialize(m_Window->getWindow(), m_Robot.get());
+        m_Renderer = std::make_unique<Renderer>(
+            *m_Window,
+            *m_Editor,
+            *m_Robot,
+            *m_Plane);
+        m_Renderer->initialize();
 
         glEnable(GL_DEPTH_TEST);
         glClearColor(0.08f, 0.08f, 0.1f, 1.0f);
@@ -96,137 +97,20 @@ namespace Mara
 
     void App::updateCamera(float deltaTime)
     {
-        const bool viewportHovered = m_Editor->isViewportHovered();
-        const bool rightMouseDown = MaraGl::Input::IsMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT);
-        const bool middleMouseDown = MaraGl::Input::IsMouseButtonPressed(GLFW_MOUSE_BUTTON_MIDDLE);
-
-        if (viewportHovered && rightMouseDown)
-        {
-            m_CameraYaw -= MaraGl::Input::GetMouseDeltaX() * 0.25f;
-            m_CameraPitch += MaraGl::Input::GetMouseDeltaY() * 0.25f;
-            m_CameraPitch = glm::clamp(m_CameraPitch, -89.0f, 89.0f);
-        }
-
-        if (viewportHovered && middleMouseDown)
-        {
-            glm::vec3 forward = glm::normalize(-glm::vec3(
-                std::sin(glm::radians(m_CameraYaw)),
-                0.0f,
-                std::cos(glm::radians(m_CameraYaw))));
-            glm::vec3 right = glm::normalize(glm::cross(
-                forward, glm::vec3(0.0f, 1.0f, 0.0f)));
-            glm::vec3 up = glm::normalize(glm::cross(right, forward));
-            m_CameraTarget +=
-                (-right * MaraGl::Input::GetMouseDeltaX() +
-                 up * MaraGl::Input::GetMouseDeltaY()) *
-                0.01f;
-        }
-
-        if (viewportHovered)
-            m_CameraDistance -= MaraGl::Input::GetMouseWheelDelta() * 0.75f;
-
-        if (ImGui::GetIO().WantCaptureKeyboard)
-            return;
-
-        if (MaraGl::Input::IsKeyPressed(GLFW_KEY_EQUAL) ||
-            MaraGl::Input::IsKeyPressed(GLFW_KEY_KP_ADD))
-        {
-            m_CameraDistance -= deltaTime * 5.0f;
-        }
-        if (MaraGl::Input::IsKeyPressed(GLFW_KEY_MINUS) ||
-            MaraGl::Input::IsKeyPressed(GLFW_KEY_KP_SUBTRACT))
-        {
-            m_CameraDistance += deltaTime * 5.0f;
-        }
-
-        m_CameraDistance = glm::clamp(m_CameraDistance, 1.0f, 50.0f);
-
-        glm::vec3 forward = glm::normalize(-glm::vec3(
-            std::sin(glm::radians(m_CameraYaw)),
-            0.0f,
-            std::cos(glm::radians(m_CameraYaw))));
-        glm::vec3 right = glm::normalize(glm::cross(forward, glm::vec3(0.0f, 1.0f, 0.0f)));
-        glm::vec3 movement(0.0f);
-
-        if (MaraGl::Input::IsKeyPressed(GLFW_KEY_W))
-            movement += forward;
-        if (MaraGl::Input::IsKeyPressed(GLFW_KEY_S))
-            movement -= forward;
-        if (MaraGl::Input::IsKeyPressed(GLFW_KEY_D))
-            movement += right;
-        if (MaraGl::Input::IsKeyPressed(GLFW_KEY_A))
-            movement -= right;
-        if (MaraGl::Input::IsKeyPressed(GLFW_KEY_E))
-            movement.y += 1.0f;
-        if (MaraGl::Input::IsKeyPressed(GLFW_KEY_Q))
-            movement.y -= 1.0f;
-        if (MaraGl::Input::IsKeyPressed(GLFW_KEY_Z))
-            movement.z += 1.0f;
-        if (MaraGl::Input::IsKeyPressed(GLFW_KEY_X))
-            movement.z -= 1.0f;
-
-        if (glm::length(movement) > 0.0f)
-            m_CameraTarget += glm::normalize(movement) * (deltaTime * 3.0f);
+        m_Camera.update(
+            deltaTime,
+            m_Editor->isViewportHovered(),
+            ImGui::GetIO().WantCaptureKeyboard);
     }
 
     void App::resetCamera()
     {
-        m_CameraDistance = 8.0f;
-        m_CameraYaw = 0.0f;
-        m_CameraPitch = 10.0f;
-        m_CameraTarget = glm::vec3(0.0f);
+        m_Camera.reset();
     }
 
     void App::renderFrame()
     {
-        m_Editor->beginSceneRender(m_Window->getWidth(), m_Window->getHeight());
-
-        m_Shader->use();
-        const TransformComponent *robotTransform = m_Scene.transform(m_RobotEntity);
-        const TransformComponent *groundTransformComponent = m_Scene.transform(m_GroundEntity);
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, robotTransform->position);
-        model = glm::rotate(model, robotTransform->rotation.x, glm::vec3(1.0f, 0.0f, 0.0f));
-        model = glm::rotate(model, robotTransform->rotation.y, glm::vec3(0.0f, 1.0f, 0.0f));
-        model = glm::rotate(model, robotTransform->rotation.z, glm::vec3(0.0f, 0.0f, 1.0f));
-        model = glm::scale(model, robotTransform->scale);
-
-        float yaw = glm::radians(m_CameraYaw);
-        float pitch = glm::radians(m_CameraPitch);
-        glm::vec3 cameraPosition = {
-            m_CameraDistance * std::cos(pitch) * std::sin(yaw),
-            m_CameraDistance * std::sin(pitch),
-            m_CameraDistance * std::cos(pitch) * std::cos(yaw)};
-        glm::mat4 view = glm::lookAt(
-            cameraPosition + m_CameraTarget,
-            m_CameraTarget,
-            glm::vec3(0.0f, 1.0f, 0.0f));
-        glm::mat4 projection = glm::perspective(
-            glm::radians(45.0f),
-            static_cast<float>(m_Window->getWidth()) / static_cast<float>(m_Window->getHeight()),
-            0.1f,
-            100.0f);
-
-        m_Shader->setMat4("model", model);
-        m_Shader->setMat4("view", view);
-        m_Shader->setMat4("projection", projection);
-        m_Shader->setVec3("viewPos", cameraPosition);
-        m_Shader->setVec3("lightDirection", -1.0f, -1.0f, -1.0f);
-        m_Shader->setVec3("lightColor", 1.0f, 1.0f, 1.0f);
-        m_Shader->setVec3("ambientColor", 1.0f, 1.0f, 1.0f);
-        m_Shader->setFloat("ambientStrength", 0.3f);
-        glm::mat4 groundTransform = glm::translate(
-            glm::mat4(1.0f),
-            groundTransformComponent->position);
-        groundTransform = glm::rotate(
-            groundTransform,
-            groundTransformComponent->rotation.x,
-            glm::vec3(1.0f, 0.0f, 0.0f));
-        groundTransform = glm::scale(groundTransform, groundTransformComponent->scale);
-        m_Plane->Draw(*m_Shader, groundTransform);
-        m_Robot->Draw(*m_Shader, model);
-
-        m_Editor->endSceneRender();
+        m_Renderer->render(m_Scene, m_RobotEntity, m_GroundEntity, m_Camera);
 
         m_Editor->beginFrame();
         m_Editor->draw();
@@ -239,10 +123,10 @@ namespace Mara
         if (!m_Window)
             return;
 
+        m_Renderer.reset();
         m_Editor.reset();
         m_Plane.reset();
         m_Robot.reset();
-        m_Shader.reset();
         m_Window.reset();
     }
 }
