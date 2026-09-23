@@ -97,7 +97,8 @@ namespace Mara
 
         ImGui::DockSpaceOverViewport(
             dockspaceID,
-            ImGui::GetMainViewport());
+            ImGui::GetMainViewport(),
+            ImGuiDockNodeFlags_NoTabBar);
 
         // ------------------------------------------------------------
         // Only build the layout if this dockspace doesn't have a
@@ -187,8 +188,19 @@ namespace Mara
             &finalViewportNode);
 
         // ------------------------------------------------------------
-        // Put each editor window into its dock node.
+        // Split the right side so Inspector and Motion remain visible
+        // without relying on a dock tab bar.
         // ------------------------------------------------------------
+
+        ImGuiID inspectorNode;
+        ImGuiID motionNode;
+
+        ImGui::DockBuilderSplitNode(
+            rightNode,
+            ImGuiDir_Down,
+            0.50f,
+            &motionNode,
+            &inspectorNode);
 
         ImGui::DockBuilderDockWindow(
             "World",
@@ -196,11 +208,11 @@ namespace Mara
 
         ImGui::DockBuilderDockWindow(
             "Inspector",
-            rightNode);
+            inspectorNode);
 
         ImGui::DockBuilderDockWindow(
             "Motion",
-            rightNode);
+            motionNode);
 
         ImGui::DockBuilderDockWindow(
             "Viewport",
@@ -294,7 +306,7 @@ namespace Mara
 
     void Editor::drawScene()
     {
-        ImGui::Begin("World");
+        ImGui::Begin("World", nullptr, ImGuiWindowFlags_NoTitleBar);
 
         ImGui::TextUnformatted("WORLD");
         ImGui::SameLine(ImGui::GetContentRegionAvail().x - 22.0f);
@@ -338,7 +350,7 @@ namespace Mara
 
     void Editor::drawViewport()
     {
-        ImGui::Begin("Viewport");
+        ImGui::Begin("Viewport", nullptr, ImGuiWindowFlags_NoTitleBar);
 
         ImGui::TextUnformatted("PERSPECTIVE");
         ImGui::SameLine();
@@ -402,7 +414,7 @@ namespace Mara
 
     void Editor::drawInspector()
     {
-        ImGui::Begin("Inspector");
+        ImGui::Begin("Inspector", nullptr, ImGuiWindowFlags_NoTitleBar);
 
         ImGui::TextUnformatted("robot_alpha");
         ImGui::SameLine(ImGui::GetContentRegionAvail().x - 38.0f);
@@ -453,7 +465,7 @@ namespace Mara
 
     void Editor::drawMotion()
     {
-        ImGui::Begin("Motion");
+        ImGui::Begin("Motion", nullptr, ImGuiWindowFlags_NoTitleBar);
 
         ImGui::TextUnformatted("JOINT CONTROLS");
         ImGui::Separator();
@@ -542,7 +554,7 @@ namespace Mara
 
     void Editor::drawConsole()
     {
-        ImGui::Begin("Console");
+        ImGui::Begin("Console", nullptr, ImGuiWindowFlags_NoTitleBar);
 
         ImGui::TextDisabled("OUTPUT");
         ImGui::SameLine();
