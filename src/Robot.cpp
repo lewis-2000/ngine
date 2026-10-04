@@ -1,6 +1,9 @@
 #include "Robot.h"
 
 #include <glm/gtc/matrix_transform.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/matrix_decompose.hpp>
+#include <glm/gtx/quaternion.hpp>
 
 #include <cmath>
 
@@ -90,6 +93,27 @@ float Robot::jointPosition(const std::string &jointName) const
     return positionIt != m_JointPositions.end() ? positionIt->second : 0.0f;
 }
 
+const UrdfJoint *Robot::jointForChildLink(const std::string &linkName) const
+{
+    for (const auto &[jointName, joint] : m_Robot.joints)
+    {
+        if (joint.child_link == linkName)
+            return &joint;
+    }
+
+        return nullptr;
+    }
+
+    bool Robot::setJointAxis(const std::string &jointName, const glm::vec3 &axis)
+    {
+        const auto jointIt = m_Robot.joints.find(jointName);
+        if (jointIt == m_Robot.joints.end() || glm::length(axis) <= 0.0001f)
+            return false;
+
+        jointIt->second.axis = glm::normalize(axis);
+        return true;
+}
+
 void Robot::resetJointPositions()
 {
     for (const auto &[jointName, joint] : m_Robot.joints)
@@ -100,23 +124,32 @@ void Robot::updateDemoAnimation(float elapsedTime)
 {
     for (const auto &[jointName, joint] : m_Robot.joints)
     {
-        if (joint.type == UrdfJoint::Type::FIXED)
-            continue;
+        if (joint.type != UrdfJoint::Type::FIXED)
+            updateDemoAnimation(elapsedTime, joint.child_link);
+    }
+}
 
-        float amplitude = 0.5f;
-        if (joint.limit.has_limit)
-        {
-            const float lower = static_cast<float>(joint.limit.lower);
-            const float upper = static_cast<float>(joint.limit.upper);
-            amplitude = (upper - lower) * 0.5f;
-            setJointPosition(
-                jointName,
-                (lower + upper) * 0.5f + amplitude * std::sin(elapsedTime));
-        }
-        else
-        {
-            setJointPosition(jointName, amplitude * std::sin(elapsedTime));
-        }
+void Robot::updateDemoAnimation(
+    float elapsedTime,
+    const std::string &selectedLink)
+{
+    const UrdfJoint *joint = jointForChildLink(selectedLink);
+    if (!joint || joint->type == UrdfJoint::Type::FIXED)
+        return;
+
+    float amplitude = 0.5f;
+    if (joint->limit.has_limit)
+    {
+        const float lower = static_cast<float>(joint->limit.lower);
+        const float upper = static_cast<float>(joint->limit.upper);
+        amplitude = (upper - lower) * 0.5f;
+        setJointPosition(
+            joint->name,
+            (lower + upper) * 0.5f + amplitude * std::sin(elapsedTime));
+    }
+    else
+    {
+        setJointPosition(joint->name, amplitude * std::sin(elapsedTime));
     }
 }
 
@@ -154,16 +187,22 @@ glm::mat4 Robot::linkTransform(const std::string &linkName) const
             if (joint.type == UrdfJoint::Type::REVOLUTE ||
                 joint.type == UrdfJoint::Type::CONTINUOUS)
             {
+                const glm::vec3 axis = glm::length(joint.axis) > 0.0f
+                                           ? glm::normalize(joint.axis)
+                                           : glm::vec3(1.0f, 0.0f, 0.0f);
                 transform = glm::rotate(
                     transform,
                     position,
-                    glm::normalize(joint.axis));
+                    axis);
             }
             else if (joint.type == UrdfJoint::Type::PRISMATIC)
             {
+                const glm::vec3 axis = glm::length(joint.axis) > 0.0f
+                                           ? glm::normalize(joint.axis)
+                                           : glm::vec3(1.0f, 0.0f, 0.0f);
                 transform = glm::translate(
                     transform,
-                    glm::normalize(joint.axis) * position);
+                    axis * position);
             }
 
             return transform;
@@ -173,7 +212,10 @@ glm::mat4 Robot::linkTransform(const std::string &linkName) const
     return glm::mat4(1.0f);
 }
 
-void Robot::Draw(Shader &shader, const glm::mat4 &robotTransform) const
+void Robot::Draw(
+    Shader &shader,
+    const glm::mat4 &robotTransform,
+    const std::string &selectedLink) const
 {
     if (!m_Loaded)
         return;
@@ -183,6 +225,7 @@ void Robot::Draw(Shader &shader, const glm::mat4 &robotTransform) const
         const glm::mat4 transform =
             robotTransform * linkTransform(linkName);
         shader.setMat4("model", transform);
+        shader.setBool("uSelectedLink", linkName == selectedLink);
 
         for (const LoadedVisual &visual : models)
         {
@@ -190,4 +233,61 @@ void Robot::Draw(Shader &shader, const glm::mat4 &robotTransform) const
             visual.model->Draw(shader);
         }
     }
+}
+
+glm::mat4 Robot::linkWorldTransform(
+    const std::string &linkName,
+    const glm::mat4 &robotTransform) const
+{
+    return robotTransform * linkTransform(linkName);
+}
+
+glm::mat4 Robot::jointFrameWorldTransform(
+    const std::string &linkName,
+    const glm::mat4 &robotTransform) const
+{
+    const UrdfJoint *joint = jointForChildLink(linkName);
+    if (!joint)
+        return linkWorldTransform(linkName, robotTransform);
+
+    return robotTransform * linkTransform(joint->parent_link) * originTransform(joint->origin);
+}
+
+bool Robot::setJointFrameWorldTransform(
+    const std::string &linkName,
+    const glm::mat4 &robotTransform,
+    const glm::mat4 &worldTransform)
+{
+    const UrdfJoint *joint = jointForChildLink(linkName);
+    if (!joint)
+        return false;
+
+    const glm::mat4 parentWorld =
+        robotTransform * linkTransform(joint->parent_link);
+    const glm::mat4 localTransform =
+        glm::inverse(parentWorld) * worldTransform;
+
+    glm::vec3 scale;
+    glm::quat rotation;
+    glm::vec3 translation;
+    glm::vec3 skew;
+    glm::vec4 perspective;
+    if (!glm::decompose(
+            localTransform,
+            scale,
+            rotation,
+            translation,
+            skew,
+            perspective))
+    {
+        return false;
+    }
+
+    auto jointIt = m_Robot.joints.find(joint->name);
+    if (jointIt == m_Robot.joints.end())
+        return false;
+
+    jointIt->second.origin.xyz = translation;
+    jointIt->second.origin.rpy = glm::eulerAngles(rotation);
+    return true;
 }

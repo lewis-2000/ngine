@@ -12,6 +12,7 @@ uniform float ambientStrength;
 uniform sampler2D uDiffuseMap;
 uniform bool uUseTexture;
 uniform vec3 uObjectColor;
+uniform bool uSelectedLink;
 
 out vec4 color;
 
@@ -29,5 +30,7 @@ void main()
 	vec3 ambient = ambientStrength * ambientColor * baseColor;
 	vec3 lighting = ambient + diffuseStrength * baseColor * lightColor;
 	lighting += 0.25 * specularStrength * lightColor;
+	if (uSelectedLink)
+		lighting = mix(lighting, vec3(0.98, 0.66, 0.16), 0.72);
 	color = vec4(lighting, 1.0);
 }

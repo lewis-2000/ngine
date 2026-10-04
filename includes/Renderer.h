@@ -16,6 +16,7 @@ namespace Mara
     {
     public:
         Renderer(Window &window, Editor &editor, Robot &robot, Plane &plane);
+        ~Renderer();
 
         void initialize();
         void render(const Scene &scene, Entity robotEntity, Entity groundEntity, const Camera &camera);
@@ -26,5 +27,8 @@ namespace Mara
         Robot &m_Robot;
         Plane &m_Plane;
         std::unique_ptr<Shader> m_Shader;
+        std::unique_ptr<Shader> m_AxisShader;
+        unsigned int m_SensorVao = 0;
+        unsigned int m_SensorVbo = 0;
     };
 }

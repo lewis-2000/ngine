@@ -1,17 +1,48 @@
 #include "Editor.h"
 
 #include <cstdint>
+#include <algorithm>
+#include <cmath>
 
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <ImGuizmo.h>
 
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_opengl3.h>
 
 #include <GLFW/glfw3.h>
+#include <glm/gtc/type_ptr.hpp>
 
 namespace Mara
 {
+    namespace
+    {
+        void drawPanelHeader(
+            const char *icon,
+            const char *title,
+            const char *status = nullptr)
+        {
+            ImGui::TextColored(ImVec4(0.10f, 0.30f, 0.48f, 1.0f), "%s", icon);
+            ImGui::SameLine();
+            ImGui::TextUnformatted(title);
+            if (status)
+            {
+                ImGui::SameLine();
+                ImGui::TextDisabled("|");
+                ImGui::SameLine();
+                ImGui::TextDisabled("%s", status);
+            }
+            ImGui::Separator();
+        }
+
+        void drawStatusBadge(
+            const char *label,
+            const ImVec4 &color)
+        {
+            ImGui::TextColored(color, "%s", label);
+        }
+    }
 
     Editor::~Editor()
     {
@@ -34,26 +65,33 @@ namespace Mara
         // Enable ImGui docking
         io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+        io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
-        ImGui::StyleColorsDark();
+        ImGui::StyleColorsLight();
 
         ImGuiStyle &style = ImGui::GetStyle();
-        style.WindowRounding = 3.0f;
-        style.FrameRounding = 2.0f;
+        style.WindowRounding = 4.0f;
+        style.FrameRounding = 3.0f;
         style.WindowBorderSize = 1.0f;
         style.FrameBorderSize = 1.0f;
-        style.ItemSpacing = ImVec2(8.0f, 6.0f);
-        style.WindowPadding = ImVec2(10.0f, 10.0f);
+        style.ItemSpacing = ImVec2(8.0f, 7.0f);
+        style.WindowPadding = ImVec2(12.0f, 10.0f);
 
         ImVec4 *colors = style.Colors;
-        colors[ImGuiCol_WindowBg] = ImVec4(0.075f, 0.085f, 0.095f, 1.0f);
-        colors[ImGuiCol_ChildBg] = ImVec4(0.055f, 0.065f, 0.075f, 1.0f);
-        colors[ImGuiCol_TitleBgActive] = ImVec4(0.12f, 0.16f, 0.19f, 1.0f);
-        colors[ImGuiCol_Header] = ImVec4(0.12f, 0.22f, 0.27f, 1.0f);
-        colors[ImGuiCol_HeaderHovered] = ImVec4(0.16f, 0.30f, 0.35f, 1.0f);
-        colors[ImGuiCol_Button] = ImVec4(0.12f, 0.17f, 0.19f, 1.0f);
-        colors[ImGuiCol_ButtonHovered] = ImVec4(0.17f, 0.30f, 0.34f, 1.0f);
-        colors[ImGuiCol_CheckMark] = ImVec4(0.27f, 0.75f, 0.76f, 1.0f);
+        colors[ImGuiCol_WindowBg] = ImVec4(0.96f, 0.97f, 0.98f, 1.0f);
+        colors[ImGuiCol_ChildBg] = ImVec4(0.92f, 0.94f, 0.96f, 1.0f);
+        colors[ImGuiCol_TitleBgActive] = ImVec4(0.78f, 0.84f, 0.90f, 1.0f);
+        colors[ImGuiCol_Header] = ImVec4(0.78f, 0.86f, 0.94f, 1.0f);
+        colors[ImGuiCol_HeaderHovered] = ImVec4(0.66f, 0.80f, 0.94f, 1.0f);
+        colors[ImGuiCol_HeaderActive] = ImVec4(0.52f, 0.70f, 0.90f, 1.0f);
+        colors[ImGuiCol_Button] = ImVec4(0.82f, 0.87f, 0.92f, 1.0f);
+        colors[ImGuiCol_ButtonHovered] = ImVec4(0.68f, 0.80f, 0.93f, 1.0f);
+        colors[ImGuiCol_CheckMark] = ImVec4(0.12f, 0.42f, 0.72f, 1.0f);
+        colors[ImGuiCol_Text] = ImVec4(0.12f, 0.16f, 0.22f, 1.0f);
+        colors[ImGuiCol_Border] = ImVec4(0.70f, 0.75f, 0.80f, 0.85f);
+        colors[ImGuiCol_Tab] = ImVec4(0.78f, 0.84f, 0.90f, 1.0f);
+        colors[ImGuiCol_TabHovered] = ImVec4(0.42f, 0.64f, 0.86f, 1.0f);
+        colors[ImGuiCol_TabActive] = ImVec4(0.30f, 0.52f, 0.76f, 1.0f);
 
         io.Fonts->AddFontFromFileTTF(
             "resources/fonts/Roboto-Variable.ttf",
@@ -62,15 +100,41 @@ namespace Mara
         ImGui_ImplGlfw_InitForOpenGL(window, true);
         ImGui_ImplOpenGL3_Init("#version 330");
 
+        m_CameraCapture.open();
+        m_PoseEstimator = createPoseEstimator();
+
+        if (m_Robot && m_Robot->isLoaded())
+            m_SelectedLink = m_Robot->rootLink();
+
         m_Initialized = true;
     }
 
     void Editor::update(float deltaTime)
     {
+        if (m_CameraCapture.isOpen())
+            m_CameraCapture.update();
+
+        m_PoseEstimator->update(
+            deltaTime,
+            m_CameraCapture.pixels().data(),
+            m_CameraCapture.width(),
+            m_CameraCapture.height());
+        m_PoseFrame = m_PoseEstimator->frame();
+
         if (!m_Robot || !m_Robot->isLoaded() || !m_SimulationRunning)
             return;
 
         setSimulationTime(m_AnimationTime + deltaTime);
+    }
+
+    void Editor::setGizmoMatrices(
+        const glm::mat4 &view,
+        const glm::mat4 &projection,
+        const glm::mat4 &robotTransform)
+    {
+        m_GizmoView = view;
+        m_GizmoProjection = projection;
+        m_RobotTransform = robotTransform;
     }
 
     void Editor::setSimulationTime(float time)
@@ -88,7 +152,21 @@ namespace Mara
 
         m_AnimationTime = time;
         if (m_Robot && m_Robot->isLoaded())
-            m_Robot->updateDemoAnimation(m_AnimationTime);
+        {
+            if (m_AnimateSelectedOnly)
+                m_Robot->updateDemoAnimation(m_AnimationTime, m_SelectedLink);
+            else
+                m_Robot->updateDemoAnimation(m_AnimationTime);
+        }
+    }
+
+    void Editor::resetSimulation()
+    {
+        m_SimulationRunning = false;
+        m_AnimationTime = 0.0f;
+
+        if (m_Robot && m_Robot->isLoaded())
+                m_Robot->resetJointPositions();
     }
 
     void Editor::setupDockspace()
@@ -149,7 +227,7 @@ namespace Mara
         ImGui::DockBuilderSplitNode(
             mainNode,
             ImGuiDir_Left,
-            0.20f,
+            0.22f,
             &leftNode,
             &centerNode);
 
@@ -166,7 +244,7 @@ namespace Mara
         ImGui::DockBuilderSplitNode(
             centerNode,
             ImGuiDir_Right,
-            0.20f,
+            0.23f,
             &rightNode,
             &viewportNode);
 
@@ -183,7 +261,7 @@ namespace Mara
         ImGui::DockBuilderSplitNode(
             viewportNode,
             ImGuiDir_Down,
-            0.20f,
+            0.22f,
             &bottomNode,
             &finalViewportNode);
 
@@ -198,7 +276,7 @@ namespace Mara
         ImGui::DockBuilderSplitNode(
             rightNode,
             ImGuiDir_Down,
-            0.50f,
+            0.48f,
             &motionNode,
             &inspectorNode);
 
@@ -235,6 +313,7 @@ namespace Mara
         ImGui_ImplGlfw_NewFrame();
 
         ImGui::NewFrame();
+        ImGuizmo::BeginFrame();
     }
 
     void Editor::draw()
@@ -250,6 +329,7 @@ namespace Mara
         drawInspector();
         drawMotion();
         drawConsole();
+        drawPosePanel();
     }
 
     void Editor::beginSceneRender(int width, int height)
@@ -257,7 +337,12 @@ namespace Mara
         if (!m_Initialized)
             return;
 
-        m_SceneFramebuffer.resize(width, height);
+        const int sceneWidth = m_RequestedSceneWidth > 0 ? m_RequestedSceneWidth : width;
+        const int sceneHeight = m_RequestedSceneHeight > 0 ? m_RequestedSceneHeight : height;
+        if (m_SceneFramebuffer.getWidth() == 0 || m_SceneFramebuffer.getHeight() == 0)
+            m_SceneFramebuffer.initialize(sceneWidth, sceneHeight);
+        else
+            m_SceneFramebuffer.resize(sceneWidth, sceneHeight);
         m_SceneFramebuffer.bind();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
@@ -280,6 +365,13 @@ namespace Mara
         if (!ImGui::BeginMainMenuBar())
             return;
 
+        ImGui::TextColored(ImVec4(0.08f, 0.32f, 0.58f, 1.0f), "NGINE");
+        ImGui::SameLine();
+        ImGui::TextDisabled("ROBOTICS STUDIO");
+        ImGui::SameLine();
+        ImGui::TextDisabled("|");
+        ImGui::SameLine();
+
         if (ImGui::BeginMenu("File"))
         {
             ImGui::MenuItem("New world");
@@ -298,8 +390,23 @@ namespace Mara
         if (ImGui::BeginMenu("View"))
         {
             ImGui::MenuItem("Grid", nullptr, &m_ShowGrid);
+            ImGui::MenuItem("Sensor visualization", nullptr, &m_ShowSensors);
+            ImGui::MenuItem("Console", nullptr, &m_ShowConsole);
+            ImGui::MenuItem("Camera preview", nullptr, &m_ShowPosePanel);
             ImGui::EndMenu();
         }
+
+        const float statusWidth = 270.0f;
+        ImGui::SameLine(ImGui::GetWindowWidth() - statusWidth);
+        drawStatusBadge(
+            m_SimulationRunning ? "● SIM RUNNING" : "● SIM PAUSED",
+            m_SimulationRunning
+                ? ImVec4(0.82f, 0.48f, 0.08f, 1.0f)
+                : ImVec4(0.30f, 0.38f, 0.48f, 1.0f));
+        ImGui::SameLine();
+        drawStatusBadge("ROS2 OFFLINE", ImVec4(0.55f, 0.36f, 0.36f, 1.0f));
+        ImGui::SameLine();
+        drawStatusBadge("SAFE", ImVec4(0.15f, 0.58f, 0.36f, 1.0f));
 
         ImGui::EndMainMenuBar();
     }
@@ -308,11 +415,10 @@ namespace Mara
     {
         ImGui::Begin("World", nullptr, ImGuiWindowFlags_NoTitleBar);
 
-        ImGui::TextUnformatted("WORLD");
+        drawPanelHeader("[R]", "ROBOT MODEL", "LINK TREE");
         ImGui::SameLine(ImGui::GetContentRegionAvail().x - 22.0f);
         ImGui::SmallButton("+");
-        ImGui::Separator();
-        ImGui::TextDisabled("Entities");
+        ImGui::TextDisabled("LINKS / JOINTS");
 
         if (ImGui::TreeNodeEx("world", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth, "World"))
         {
@@ -320,17 +426,24 @@ namespace Mara
                                         ? m_Robot->name().c_str()
                                         : "No robot loaded";
 
-            if (ImGui::TreeNodeEx("robot", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Selected | ImGuiTreeNodeFlags_SpanAvailWidth, "%s", robotName))
+            const bool robotSelected = m_SelectedLink.empty() || m_SelectedLink == "robot";
+            if (ImGui::TreeNodeEx("robot", ImGuiTreeNodeFlags_DefaultOpen | (robotSelected ? ImGuiTreeNodeFlags_Selected : 0) | ImGuiTreeNodeFlags_SpanAvailWidth, "%s", robotName))
             {
                 if (m_Robot && m_Robot->isLoaded())
                 {
                     for (const auto &[linkName, link] : m_Robot->data().links)
                     {
+                        ImGui::PushID(linkName.c_str());
                         ImGui::TreeNodeEx(
-                            linkName.c_str(),
-                            ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_SpanAvailWidth,
-                            "%s",
+                            "link",
+                            ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen |
+                                ImGuiTreeNodeFlags_SpanAvailWidth |
+                                (m_SelectedLink == linkName ? ImGuiTreeNodeFlags_Selected : 0),
+                            "[L] %s",
                             linkName.c_str());
+                        if (ImGui::IsItemClicked())
+                            m_SelectedLink = linkName;
+                        ImGui::PopID();
                     }
                 }
                 ImGui::TreePop();
@@ -340,7 +453,7 @@ namespace Mara
         }
 
         ImGui::Spacing();
-        ImGui::TextDisabled("Simulation");
+        ImGui::TextDisabled("SIMULATION STATUS");
         ImGui::Text("Physics");
         ImGui::SameLine(ImGui::GetContentRegionAvail().x - 48.0f);
         ImGui::TextColored(ImVec4(0.30f, 0.78f, 0.70f, 1.0f), "Ready");
@@ -352,10 +465,16 @@ namespace Mara
     {
         ImGui::Begin("Viewport", nullptr, ImGuiWindowFlags_NoTitleBar);
 
-        ImGui::TextUnformatted("PERSPECTIVE");
+        drawPanelHeader("[3D]", "SCENE VIEWPORT", "PERSPECTIVE");
         ImGui::SameLine();
-        ImGui::TextDisabled("|  robot_alpha  |  60 FPS");
-        ImGui::SameLine(ImGui::GetContentRegionAvail().x - 170.0f);
+        ImGui::TextDisabled("| humanoid | 60 FPS");
+        ImGui::SameLine(ImGui::GetContentRegionAvail().x - 340.0f);
+        if (ImGui::SmallButton("Front"))
+            m_CameraResetRequested = true;
+        ImGui::SameLine();
+        if (ImGui::SmallButton(m_ShowGrid ? "Grid ON" : "Grid OFF"))
+            m_ShowGrid = !m_ShowGrid;
+        ImGui::SameLine();
         if (ImGui::Button(m_SimulationRunning ? "Pause" : "Play"))
             m_SimulationRunning = !m_SimulationRunning;
         ImGui::SameLine();
@@ -370,45 +489,62 @@ namespace Mara
 
         if (width > 0 && height > 0)
         {
-            const float sceneAspect =
-                static_cast<float>(m_SceneFramebuffer.getWidth()) /
-                static_cast<float>(m_SceneFramebuffer.getHeight());
-            ImVec2 imageSize = viewportSize;
-
-            if (viewportSize.x / viewportSize.y > sceneAspect)
-                imageSize.x = viewportSize.y * sceneAspect;
-            else
-                imageSize.y = viewportSize.x / sceneAspect;
-
-            const ImVec2 imageOffset(
-                (viewportSize.x - imageSize.x) * 0.5f,
-                (viewportSize.y - imageSize.y) * 0.5f);
-            const ImVec2 cursorPosition = ImGui::GetCursorPos();
-            ImGui::SetCursorPos(ImVec2(
-                cursorPosition.x + imageOffset.x,
-                cursorPosition.y + imageOffset.y));
+            m_RequestedSceneWidth = width;
+            m_RequestedSceneHeight = height;
 
             ImGui::Image(
                 static_cast<ImTextureID>(
                     static_cast<uintptr_t>(
                         m_SceneFramebuffer.getColorTexture())),
-                imageSize,
+                viewportSize,
                 ImVec2(0, 1),
                 ImVec2(1, 0));
 
             m_ViewportHovered = ImGui::IsItemHovered();
 
+            if (m_Robot && m_Robot->isLoaded() &&
+                !m_SelectedLink.empty() &&
+                m_Robot->jointForChildLink(m_SelectedLink))
+            {
+                ImGuizmo::SetDrawlist();
+                ImGuizmo::Enable(true);
+                ImGuizmo::SetOrthographic(false);
+                ImGuizmo::SetRect(
+                    ImGui::GetItemRectMin().x,
+                    ImGui::GetItemRectMin().y,
+                    viewportSize.x,
+                    viewportSize.y);
+
+                glm::mat4 jointFrame =
+                    m_Robot->jointFrameWorldTransform(m_SelectedLink, m_RobotTransform);
+                ImGuizmo::Manipulate(
+                    glm::value_ptr(m_GizmoView),
+                    glm::value_ptr(m_GizmoProjection),
+                    ImGuizmo::ROTATE | ImGuizmo::TRANSLATE,
+                    ImGuizmo::LOCAL,
+                    glm::value_ptr(jointFrame));
+                if (ImGuizmo::IsUsing())
+                {
+                    m_Robot->setJointFrameWorldTransform(
+                        m_SelectedLink,
+                        m_RobotTransform,
+                        jointFrame);
+                    m_SimulationRunning = false;
+                }
+            }
+
             ImGui::SetCursorPos(ImVec2(18.0f, 58.0f));
-            ImGui::BeginChild("ViewportOverlay", ImVec2(190.0f, 86.0f), true);
+            ImGui::BeginChild("ViewportOverlay", ImVec2(250.0f, 142.0f), true);
+            ImGui::TextDisabled("SIMULATION");
+            ImGui::Text("State  %s", m_SimulationRunning ? "RUNNING" : "PAUSED");
+            ImGui::Text("Time   %.2f / %.2f s", m_AnimationTime, m_AnimationDuration);
+            ImGui::Text("Grid   %s", m_ShowGrid ? "ON" : "OFF");
+            ImGui::Text("Sensors %s", m_ShowSensors ? "DEBUG" : "OFF");
             ImGui::TextDisabled("CAMERA");
             ImGui::Text("RMB orbit | MMB pan");
             ImGui::Text("Wheel or +/- zoom");
-            ImGui::Text("Z/X move along world Z");
-            ImGui::Text("Grid  %s", m_ShowGrid ? "ON" : "OFF");
-            ImGui::Text("Origin  (0, 0, 0)");
             ImGui::EndChild();
         }
-
         ImGui::End();
     }
 
@@ -416,14 +552,20 @@ namespace Mara
     {
         ImGui::Begin("Inspector", nullptr, ImGuiWindowFlags_NoTitleBar);
 
-        ImGui::TextUnformatted("robot_alpha");
+        const std::string selectedName =
+            m_SelectedLink.empty()
+                ? (m_Robot && m_Robot->isLoaded() ? m_Robot->name() : "No selection")
+                : m_SelectedLink;
+        drawPanelHeader("[I]", "LINK INSPECTOR", selectedName.c_str());
+        ImGui::Text("%s", selectedName.c_str());
         ImGui::SameLine(ImGui::GetContentRegionAvail().x - 38.0f);
         ImGui::TextDisabled("LINK");
         ImGui::Separator();
 
         ImGui::TextDisabled("General");
-        char entityName[] = "robot_alpha";
-        ImGui::InputText("Name", entityName, sizeof(entityName));
+        ImGui::Text("Name");
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", selectedName.c_str());
 
         if (ImGui::CollapsingHeader("Transform"))
         {
@@ -450,6 +592,19 @@ namespace Mara
             ImGui::BulletText("Lidar sensor");
         }
 
+        if (const UrdfJoint *joint = m_Robot && m_Robot->isLoaded()
+                                        ? m_Robot->jointForChildLink(m_SelectedLink)
+                                        : nullptr)
+        {
+            if (ImGui::CollapsingHeader("Joint direction", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                glm::vec3 axis = joint->axis;
+                if (ImGui::DragFloat3("Axis", &axis.x, 0.01f, -1.0f, 1.0f))
+                    m_Robot->setJointAxis(joint->name, axis);
+                ImGui::TextDisabled("Use the gizmo to edit the joint frame.");
+            }
+        }
+
         if (ImGui::CollapsingHeader("Sensors"))
         {
             ImGui::Text("lidar");
@@ -467,8 +622,7 @@ namespace Mara
     {
         ImGui::Begin("Motion", nullptr, ImGuiWindowFlags_NoTitleBar);
 
-        ImGui::TextUnformatted("JOINT CONTROLS");
-        ImGui::Separator();
+        drawPanelHeader("[J]", "JOINT CONTROL", m_SimulationRunning ? "PLAYBACK" : "MANUAL");
         ImGui::TextDisabled("TIMELINE");
         if (ImGui::Button(m_SimulationRunning ? "Pause" : "Play"))
             m_SimulationRunning = !m_SimulationRunning;
@@ -481,11 +635,25 @@ namespace Mara
         ImGui::SameLine();
         if (ImGui::Button("Reset"))
         {
-            m_SimulationRunning = false;
-            setSimulationTime(0.0f);
+            resetSimulation();
         }
 
         ImGui::Checkbox("Loop", &m_LoopAnimation);
+        ImGui::Checkbox(
+            "Animate selected component only",
+            &m_AnimateSelectedOnly);
+        if (m_AnimateSelectedOnly)
+        {
+            const UrdfJoint *selectedJoint =
+                m_Robot && m_Robot->isLoaded()
+                    ? m_Robot->jointForChildLink(m_SelectedLink)
+                    : nullptr;
+            ImGui::TextDisabled(
+                selectedJoint
+                    ? "Playing: %s"
+                    : "Select a movable link to animate",
+                selectedJoint ? selectedJoint->name.c_str() : "");
+        }
         const bool timelineChanged = ImGui::SliderFloat(
             "Time",
             &m_AnimationTime,
@@ -508,6 +676,19 @@ namespace Mara
         }
         else
         {
+            const UrdfJoint *selectedJoint =
+                m_Robot->jointForChildLink(m_SelectedLink);
+            ImGui::TextDisabled(
+                selectedJoint ? "Selected joint: %s" : "Select a link to edit its joint",
+                selectedJoint ? selectedJoint->name.c_str() : "");
+
+            const float controlsHeight = glm::max(80.0f, ImGui::GetContentRegionAvail().y - 34.0f);
+            ImGui::BeginChild(
+                "JointControls",
+                ImVec2(0.0f, controlsHeight),
+                false,
+                ImGuiWindowFlags_AlwaysVerticalScrollbar);
+
             for (const auto &[jointName, joint] : m_Robot->data().joints)
             {
                 if (joint.type == UrdfJoint::Type::FIXED)
@@ -530,8 +711,30 @@ namespace Mara
                     upper = static_cast<float>(joint.limit.upper);
                 }
 
+                const bool jointSelected =
+                    selectedJoint && selectedJoint->name == jointName;
+                ImGui::PushID(jointName.c_str());
+                ImGui::BeginGroup();
+                ImGui::TextColored(
+                    jointSelected
+                        ? ImVec4(0.08f, 0.35f, 0.70f, 1.0f)
+                        : ImVec4(0.25f, 0.30f, 0.36f, 1.0f),
+                    "%s",
+                    jointName.c_str());
+                ImGui::SameLine(ImGui::GetContentRegionAvail().x - 62.0f);
+                ImGui::TextDisabled("%s", joint.type == UrdfJoint::Type::PRISMATIC ? "PRISM" : "REV");
+                if (jointSelected)
+                {
+                    ImGui::PushStyleColor(
+                        ImGuiCol_FrameBg,
+                        ImVec4(0.64f, 0.78f, 0.94f, 1.0f));
+                    ImGui::PushStyleColor(
+                        ImGuiCol_SliderGrab,
+                        ImVec4(0.12f, 0.42f, 0.72f, 1.0f));
+                }
+
                 if (ImGui::SliderFloat(
-                        jointName.c_str(),
+                        "##value",
                         &position,
                         lower,
                         upper,
@@ -540,12 +743,23 @@ namespace Mara
                     m_Robot->setJointPosition(jointName, position);
                     m_SimulationRunning = false;
                 }
+
+                if (ImGui::IsItemClicked())
+                    m_SelectedLink = joint.child_link;
+
+                if (jointSelected)
+                    ImGui::PopStyleColor(2);
+                ImGui::SameLine();
+                ImGui::TextDisabled("%.2f", position);
+                ImGui::EndGroup();
+                ImGui::PopID();
             }
+
+            ImGui::EndChild();
 
             if (ImGui::Button("Reset joints"))
             {
-                m_Robot->resetJointPositions();
-                setSimulationTime(0.0f);
+                resetSimulation();
             }
         }
 
@@ -554,8 +768,12 @@ namespace Mara
 
     void Editor::drawConsole()
     {
+        if (!m_ShowConsole)
+            return;
+
         ImGui::Begin("Console", nullptr, ImGuiWindowFlags_NoTitleBar);
 
+        drawPanelHeader("[!]", "DIAGNOSTICS", "LOCAL");
         ImGui::TextDisabled("OUTPUT");
         ImGui::SameLine();
         ImGui::TextDisabled("PHYSICS");
@@ -569,6 +787,75 @@ namespace Mara
         ImGui::End();
     }
 
+    void Editor::drawPosePanel()
+    {
+        if (!m_ShowPosePanel)
+            return;
+
+        ImGui::SetNextWindowSize(ImVec2(420.0f, 460.0f), ImGuiCond_FirstUseEver);
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.07f, 0.09f, 0.12f, 1.0f));
+        ImGui::Begin(
+            "Camera preview",
+            &m_ShowPosePanel,
+            ImGuiWindowFlags_NoDocking);
+
+        ImGui::TextColored(ImVec4(0.35f, 0.78f, 0.95f, 1.0f), "[CAM]");
+        ImGui::SameLine();
+        ImGui::TextUnformatted("CAMERA PREVIEW");
+        ImGui::SameLine(ImGui::GetContentRegionAvail().x - 64.0f);
+        ImGui::TextColored(
+            ImVec4(0.25f, 0.70f, 0.38f, 1.0f),
+            "READY");
+        ImGui::Separator();
+        ImGui::TextDisabled("Pose detection will be added after camera capture is validated.");
+
+        const ImVec2 canvasPosition = ImGui::GetCursorScreenPos();
+        const ImVec2 canvasSize(
+            ImGui::GetContentRegionAvail().x,
+            glm::max(220.0f, ImGui::GetContentRegionAvail().y - 44.0f));
+        ImGui::InvisibleButton("PoseCanvas", canvasSize);
+
+        ImDrawList *drawList = ImGui::GetWindowDrawList();
+        drawList->AddRectFilled(
+            canvasPosition,
+            ImVec2(canvasPosition.x + canvasSize.x, canvasPosition.y + canvasSize.y),
+            IM_COL32(18, 22, 29, 255),
+            4.0f);
+
+        if (m_CameraCapture.isOpen())
+        {
+            drawList->AddImage(
+                static_cast<ImTextureID>(
+                    static_cast<uintptr_t>(m_CameraCapture.texture())),
+                canvasPosition,
+                ImVec2(
+                    canvasPosition.x + canvasSize.x,
+                    canvasPosition.y + canvasSize.y),
+                ImVec2(0.0f, 0.0f),
+                ImVec2(1.0f, 1.0f),
+                IM_COL32(255, 255, 255, 255));
+        }
+
+        if (!m_CameraCapture.isOpen())
+        {
+            const char *message = "Camera capture is unavailable";
+            const ImVec2 textSize = ImGui::CalcTextSize(message);
+            drawList->AddText(
+                ImVec2(
+                    canvasPosition.x + (canvasSize.x - textSize.x) * 0.5f,
+                    canvasPosition.y + (canvasSize.y - textSize.y) * 0.5f),
+                IM_COL32(190, 198, 210, 255),
+                message);
+        }
+
+        ImGui::TextDisabled(
+            m_CameraCapture.isOpen()
+                ? "Live camera feed."
+                : m_CameraCapture.lastError().c_str());
+        ImGui::End();
+        ImGui::PopStyleColor();
+    }
+
     void Editor::endFrame()
     {
         if (!m_Initialized)
@@ -578,6 +865,14 @@ namespace Mara
 
         ImGui_ImplOpenGL3_RenderDrawData(
             ImGui::GetDrawData());
+
+        if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+        {
+            GLFWwindow *currentContext = glfwGetCurrentContext();
+            ImGui::UpdatePlatformWindows();
+            ImGui::RenderPlatformWindowsDefault();
+            glfwMakeContextCurrent(currentContext);
+        }
     }
 
     void Editor::shutdown()

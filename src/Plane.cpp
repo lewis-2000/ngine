@@ -39,8 +39,11 @@ Plane::Plane(float size)
 {
 }
 
-void Plane::Draw(Shader &shader, const glm::mat4 &transform)
+void Plane::Draw(Shader &shader, const glm::mat4 &transform, bool visible)
 {
+    if (!visible)
+        return;
+
     shader.setMat4("model", transform);
     m_Mesh.Draw(shader, &m_Material);
 }

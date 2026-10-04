@@ -26,7 +26,7 @@ namespace Mara
         if (m_Window)
             return;
 
-        m_Window = std::make_unique<Window>(1920, 1080, "NGine");
+        m_Window = std::make_unique<Window>(1366, 768, "NGine");
         m_Window->initialize();
         m_Window->show();
         MaraGl::Input::Init(m_Window->getWindow());

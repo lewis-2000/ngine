@@ -24,11 +24,27 @@ public:
 
     void setJointPosition(const std::string &jointName, float position);
     float jointPosition(const std::string &jointName) const;
+    const UrdfJoint *jointForChildLink(const std::string &linkName) const;
+    bool setJointAxis(const std::string &jointName, const glm::vec3 &axis);
+    glm::mat4 jointFrameWorldTransform(
+        const std::string &linkName,
+        const glm::mat4 &robotTransform) const;
+    bool setJointFrameWorldTransform(
+        const std::string &linkName,
+        const glm::mat4 &robotTransform,
+        const glm::mat4 &worldTransform);
     void resetJointPositions();
     void updateDemoAnimation(float elapsedTime);
+    void updateDemoAnimation(float elapsedTime, const std::string &selectedLink);
 
     std::filesystem::path resolveMeshPath(const std::string &meshFilename) const;
-    void Draw(Shader &shader, const glm::mat4 &robotTransform) const;
+    void Draw(
+        Shader &shader,
+        const glm::mat4 &robotTransform,
+        const std::string &selectedLink = {}) const;
+    glm::mat4 linkWorldTransform(
+        const std::string &linkName,
+        const glm::mat4 &robotTransform) const;
 
 private:
     struct LoadedVisual

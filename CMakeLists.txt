@@ -3,6 +3,18 @@ project("ngine")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+find_package(OpenGL REQUIRED)
+
+option(NGINE_ENABLE_OPENCV "Enable cross-platform webcam capture through OpenCV" OFF)
+option(NGINE_ENABLE_TFLITE "Enable MoveNet through the TensorFlow Lite C API" OFF)
+if(NGINE_ENABLE_OPENCV)
+    find_package(OpenCV REQUIRED COMPONENTS core imgproc videoio)
+endif()
+
+if(NGINE_ENABLE_TFLITE)
+    find_path(TFLITE_INCLUDE_DIR tensorflow/lite/c/c_api.h REQUIRED)
+    find_library(TFLITE_LIBRARY tensorflow-lite REQUIRED)
+endif()
 
 add_subdirectory(vendors/glfw)
 
@@ -44,6 +56,14 @@ target_include_directories(imgui PUBLIC vendors/imgui vendors/imgui/backends)
 
 target_compile_definitions(imgui PRIVATE IMGUI_IMPL_OPENGL_LOADER_GLAD)
 
+# IMGUIZMO
+add_library(imguizmo STATIC
+    vendors/ImGuizmo/src/ImGuizmo.cpp
+)
+
+target_include_directories(imguizmo PUBLIC vendors/ImGuizmo/src)
+target_link_libraries(imguizmo PUBLIC imgui)
+
 # Linking libraries
 target_link_libraries(imgui PUBLIC glfw glad)
 
@@ -53,7 +73,19 @@ add_executable(${PROJECT_NAME} src/App.cpp main.cpp ${ENGINE_SOURCES} )
 
 target_include_directories(${PROJECT_NAME} PUBLIC includes vendors/glm)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE glfw glad stb imgui assimp tinyxml2::tinyxml2 opengl32)
+target_link_libraries(${PROJECT_NAME} PRIVATE glfw glad stb imgui imguizmo assimp tinyxml2::tinyxml2 OpenGL::GL)
+
+if(NGINE_ENABLE_OPENCV)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE NGINE_ENABLE_OPENCV)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_LIBS})
+    target_include_directories(${PROJECT_NAME} PRIVATE ${OpenCV_INCLUDE_DIRS})
+endif()
+
+if(NGINE_ENABLE_TFLITE)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE NGINE_ENABLE_TFLITE)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${TFLITE_INCLUDE_DIR})
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${TFLITE_LIBRARY})
+endif()
 
 set(RUNTIME_SHADER_FILES
     ${CMAKE_SOURCE_DIR}/shaders/scene.vert

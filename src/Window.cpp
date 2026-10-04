@@ -42,6 +42,7 @@ namespace Mara
 
         glfwSetWindowUserPointer(m_Window, this);
         glfwSetFramebufferSizeCallback(m_Window, framebufferSizeCallback);
+        glfwSetWindowSizeLimits(m_Window, 1366, 768, GLFW_DONT_CARE, GLFW_DONT_CARE);
 
         // Make context current
         glfwMakeContextCurrent(m_Window);
@@ -85,6 +86,7 @@ namespace Mara
             return;
 
         glfwShowWindow(m_Window);
+        glfwMaximizeWindow(m_Window);
         glfwFocusWindow(m_Window);
     }
 
