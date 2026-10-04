@@ -2,7 +2,10 @@
 
 NGine is a C++20 OpenGL robot visualization and editor application. The project uses GLFW, GLAD, Dear ImGui, GLM, Assimp, TinyXML-2, and stb. These dependencies are included in the repository under `vendors/`.
 
-![NGine editor viewport](Docs/editorviewport.png)
+![NGine editor viewport](Docs/viewport.png)
+
+## Here is an image of the robot this program is meant for
+![MKU Robot](Docs/robot.jpeg)
 
 ## Requirements
 
