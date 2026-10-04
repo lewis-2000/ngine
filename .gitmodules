@@ -20,3 +20,6 @@
 [submodule "vendors/tinyxml2"]
 	path = vendors/tinyxml2
 	url = https://github.com/leethomason/tinyxml2.git
+[submodule "vendors/ImGuizmo"]
+	path = vendors/ImGuizmo
+	url = https://github.com/CedricGuillemet/ImGuizmo.git
