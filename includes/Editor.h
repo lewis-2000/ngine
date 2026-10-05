@@ -8,6 +8,7 @@
 #include "PoseFrame.h"
 #include "PoseEstimator.h"
 #include "Robot.h"
+#include "RosTelemetryClient.h"
 #include <glm/mat4x4.hpp>
 
 struct GLFWwindow;
@@ -58,6 +59,8 @@ namespace Mara
         void drawMotion();
         void drawConsole();
         void drawPosePanel();
+        void drawTelemetry();
+        void applyTelemetryToRobot();
         void setSimulationTime(float time);
         void resetSimulation();
 
@@ -68,6 +71,9 @@ namespace Mara
         bool m_ShowSensors = false;
         bool m_ShowConsole = false;
         bool m_ShowPosePanel = false;
+        bool m_ShowTelemetry = true;
+        bool m_ApplyTelemetryToRobot = false;
+        RosTelemetryClient m_TelemetryClient;
         CameraCapture m_CameraCapture;
         std::unique_ptr<PoseEstimator> m_PoseEstimator;
         bool m_AnimateSelectedOnly = false;

@@ -104,6 +104,89 @@ Run the executable from the repository root so the relative shader, font, and ro
 
 The editor opens with the robot scene. The viewport supports camera orbit, panning, zooming, joint controls, and the current demo animation controls.
 
+## Read-only ROS 2 telemetry bridge
+
+NGine can display live, read-only motor, power, IMU, and controller-state
+telemetry from the robot's ROS 2 computer. The relay subscribes to ROS 2
+feedback topics only; it does not publish motor commands or call motor
+services.
+
+The current setup expects the Ubuntu host at `192.168.41.1` and TCP port
+`8765`.
+
+### 1. Copy the relay to Ubuntu
+
+Run this from a Windows PowerShell terminal in the NGine repository:
+
+```powershell
+scp C:\Users\flamm\Dev\Graphics\ngine\scripts\ros2_telemetry_relay.py ubuntu@192.168.41.1:/home/ubuntu/
+```
+
+Enter the Ubuntu user's password when prompted.
+
+### 2. Start the relay on Ubuntu
+
+Connect to the host:
+
+```powershell
+ssh ubuntu@192.168.41.1
+```
+
+Then run these commands in the Ubuntu shell:
+
+```bash
+source /opt/ros/humble/setup.bash
+source /home/ubuntu/ros2_tg/src/x86/benti/TG2.0-Plus_linux-x86_ros2-general_v2.0.7_20260527_155108/install/setup.bash
+python3 /home/ubuntu/ros2_telemetry_relay.py --bind 0.0.0.0 --port 8765 --rate 20
+```
+
+Keep this SSH terminal running. The relay should report that it is waiting for
+an NGine telemetry client.
+
+### 3. Start NGine and connect
+
+In a second Windows PowerShell terminal, rebuild and run NGine:
+
+```powershell
+cd C:\Users\flamm\Dev\Graphics\ngine
+cmake --build C:\Users\flamm\Dev\Graphics\ngine\build --config Release --parallel 1
+cd C:\Users\flamm\Dev\Graphics\ngine\build
+.\ngine.exe
+```
+
+In the editor:
+
+1. Open **View > Robot telemetry**.
+2. Click **Connect**.
+3. Confirm that the panel shows **LIVE DATA** and increasing frame counts.
+4. Enable **Apply healthy motor feedback to model**.
+
+The last option applies healthy, read-only motor positions to the simulated
+robot for visual comparison. It does not send anything back to ROS 2. Position
+values are currently shown and applied as vendor-reported values; no
+degree/radian conversion is performed.
+
+If the connection fails, test the network port from Windows:
+
+```powershell
+Test-NetConnection 192.168.41.1 -Port 8765
+```
+
+The result should contain:
+
+```text
+TcpTestSucceeded : True
+```
+
+More protocol and safety details are documented in
+[Docs/ros2-bridge-read-only-reference.md](Docs/ros2-bridge-read-only-reference.md).
+
+### Bridge walkthrough
+
+<video controls src="Docs/ScreenRecordingOfApp.mp4" width="800"></video>
+
+<video controls src="Docs/CameraRecordingOfApp.mp4" width="800"></video>
+
 ## Build Directory Cleanup
 
 If CMake reports stale generator or configuration errors, remove the build directory and configure it again:

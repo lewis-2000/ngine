@@ -1,0 +1,1044 @@
+nvidia@nvidia-desktop:~$ mkdir -p ros2-bridge-inspection
+
+ros2 daemon stop
+ros2 daemon start
+
+ros2 topic list -t | tee ros2-bridge-inspection/topic-types.txt
+ros2 node list | tee ros2-bridge-inspection/nodes.txt
+ros2 service list -t | tee ros2-bridge-inspection/services.txt
+ros2 action list -t | tee ros2-bridge-inspection/actions.txt
+
+for topic in \
+  /arm_6dof_left \
+  /arm_6dof_right \
+  /bodycontrol_state \
+  /arm/status \
+  /leg/status \
+  /head/status \
+  /waist/status \
+  /power/board/ctrl \
+  /power/board/status \
+  /sbus_data \
+  /imu/status
+do
+  file_name=$(echo "$topic" | tr '/' '_')
+  echo "==================== $topic ====================" | tee "ros2-bridge-inspection/${file_name}.txt"
+  ros2 topic info -v "$topic" 2>&1 | tee -a "ros2-bridge-inspection/${file_name}.txt"
+  echo "--- SAMPLE MESSAGE ---" | tee -a "ros2-bridge-inspection/${file_name}.txt"
+  timeout 5 ros2 topic echo --once "$topic" 2>&1 | tee -a "ros2-bridge-inspection/${file_name}.txt"
+realpath ros2-bridge-inspections saved in:"|enable|disable|mode|state"te"
+The daemon has been stopped
+The daemon has been started
+/alarm [bodyctrl_msgs/msg/Alarm]
+/arm/cmd_ctrl [bodyctrl_msgs/msg/CmdMotorCtrl]
+/arm/cmd_current [bodyctrl_msgs/msg/CmdSetMotorCurTor]
+/arm/cmd_dis [bodyctrl_msgs/msg/CmdSetMotorDistance]
+/arm/cmd_pos [bodyctrl_msgs/msg/CmdSetMotorPosition]
+/arm/cmd_set_zero [std_msgs/msg/String]
+/arm/cmd_vel [bodyctrl_msgs/msg/CmdSetMotorSpeed]
+/arm/motor_status [bodyctrl_msgs/msg/MotorStatusMsg1]
+/arm/status [bodyctrl_msgs/msg/MotorStatusMsg]
+/arm_6dof_left [geometry_msgs/msg/WrenchStamped]
+/arm_6dof_right [geometry_msgs/msg/WrenchStamped]
+/audio/config/notify [std_msgs/msg/String]
+/audio_chat/enable [std_msgs/msg/Bool]
+/bag_record/control/notify [std_msgs/msg/String]
+/bodycontrol_state [bodyctrl_msgs/msg/NodeState]
+/camera/color/camera_info [sensor_msgs/msg/CameraInfo]
+/camera/color/image_raw [sensor_msgs/msg/Image]
+/camera/color/image_raw/compressed [sensor_msgs/msg/CompressedImage]
+/camera/color/image_raw/theora [theora_image_transport/msg/Packet]
+/camera/color/metadata [orbbec_camera_msgs/msg/Metadata]
+/camera/depth/camera_info [sensor_msgs/msg/CameraInfo]
+/camera/depth/image_raw [sensor_msgs/msg/Image]
+/camera/depth/image_raw/compressedDepth [sensor_msgs/msg/CompressedImage]
+/camera/depth/metadata [orbbec_camera_msgs/msg/Metadata]
+/camera/depth_filter_status [std_msgs/msg/String]
+/camera/device_status [orbbec_camera_msgs/msg/DeviceStatus]
+/diagnostics [diagnostic_msgs/msg/DiagnosticArray]
+/head/cmd_ctrl [bodyctrl_msgs/msg/CmdMotorCtrl]
+/head/cmd_dis [bodyctrl_msgs/msg/CmdSetMotorDistance]
+/head/cmd_pos [bodyctrl_msgs/msg/CmdSetMotorPosition]
+/head/cmd_set_zero [std_msgs/msg/String]
+/head/cmd_vel [bodyctrl_msgs/msg/CmdSetMotorSpeed]
+/head/motor_status [bodyctrl_msgs/msg/MotorStatusMsg1]
+/head/status [bodyctrl_msgs/msg/MotorStatusMsg]
+/hric/motion/status [hric_msgs/msg/MotionStatus]
+/hric/robot/action_status [hric_msgs/msg/ActionStatus]
+/hric/robot/cmd_vel [geometry_msgs/msg/TwistStamped]
+/hric/robot/float_base_rpyz_cmd [hric_msgs/msg/FloatBaseRPYZ]
+/hric/robot/float_base_rpyz_status [hric_msgs/msg/FloatBaseRPYZ]
+/hric/robot/get_vel_limit [hric_msgs/msg/GetVelLimit]
+/hric/robot/set_vel_limit [hric_msgs/msg/SetVelLimit]
+/imu [sensor_msgs/msg/Imu]
+/imu/offset_notify [std_msgs/msg/String]
+/imu/status [bodyctrl_msgs/msg/Imu]
+/inspire_hand/ctrl/left_hand [sensor_msgs/msg/JointState]
+/inspire_hand/ctrl/right_hand [sensor_msgs/msg/JointState]
+/inspire_hand/error/left_hand [std_msgs/msg/UInt32MultiArray]
+/inspire_hand/error/right_hand [std_msgs/msg/UInt32MultiArray]
+/inspire_hand/state/left_hand [sensor_msgs/msg/JointState]
+/inspire_hand/state/right_hand [sensor_msgs/msg/JointState]
+/leg/cmd_ctrl [bodyctrl_msgs/msg/CmdMotorCtrl]
+/leg/cmd_dis [bodyctrl_msgs/msg/CmdSetMotorDistance]
+/leg/cmd_pos [bodyctrl_msgs/msg/CmdSetMotorPosition]
+/leg/cmd_set_zero [std_msgs/msg/String]
+/leg/cmd_vel [bodyctrl_msgs/msg/CmdSetMotorSpeed]
+/leg/motor_status [bodyctrl_msgs/msg/MotorStatusMsg1]
+/leg/status [bodyctrl_msgs/msg/MotorStatusMsg]
+/motion/offset_notify [std_msgs/msg/String]
+/node/status [bodyctrl_msgs/msg/NodeState]
+/parameter_events [rcl_interfaces/msg/ParameterEvent]
+/power/battery/status [bodyctrl_msgs/msg/PowerBatteryStatus]
+/power/board/ctrl [bodyctrl_msgs/msg/PowerBoardCtrl]
+/power/board/key_status [bodyctrl_msgs/msg/PowerBoardKeyStatus]
+/power/board/status [bodyctrl_msgs/msg/PowerStatus]
+/power/light/ctrl [bodyctrl_msgs/msg/PowerLightCtrl]
+/proc_manager/config/notify [std_msgs/msg/String]
+/restart_ec_slave [bodyctrl_msgs/msg/EtherCatSlaveRestart]
+/robot/trace/event_data [cloud_service/msg/TraceDatas]
+/rosout [rcl_interfaces/msg/Log]
+/sbus_data [sensor_msgs/msg/Joy]
+/sbus_data/event [bodyctrl_msgs/msg/SbusData]
+/system/diagnose/fault_report [sys_msgs/msg/Fault]
+/system/diagnose/faults_report [sys_msgs/msg/FaultArray]
+/tf [tf2_msgs/msg/TFMessage]
+/tf_static [tf2_msgs/msg/TFMessage]
+/waist/cmd_ctrl [bodyctrl_msgs/msg/CmdMotorCtrl]
+/waist/cmd_dis [bodyctrl_msgs/msg/CmdSetMotorDistance]
+/waist/cmd_pos [bodyctrl_msgs/msg/CmdSetMotorPosition]
+/waist/cmd_set_zero [std_msgs/msg/String]
+/waist/cmd_vel [bodyctrl_msgs/msg/CmdSetMotorSpeed]
+/waist/motor_status [bodyctrl_msgs/msg/MotorStatusMsg1]
+/waist/status [bodyctrl_msgs/msg/MotorStatusMsg]
+/xsys/light/ctrl [bodyctrl_msgs/msg/LightCtrl]
+/xunfei/tts_play [std_msgs/msg/String]
+WARNING: Be aware that are nodes in the graph that share an exact name, this can have unintended side effects.
+/OTA
+/audio_node
+/audio_node_container
+/bluetooth_container
+/bluetooth_server_node
+/bodyctrl
+/bodyctrl_nodes
+/camera/camera
+/camera/camera_container
+/cloud_upgrade
+/diagnose_tiangong2_plus_container
+/diagnose_tiangong2_upgrade_node
+/launch_ros_2101
+/launch_ros_4298
+/launch_ros_4349
+/launch_ros_4355
+/launch_ros_4358
+/launch_ros_4361
+/launch_ros_4364
+/launch_ros_4987
+/powerboard
+/powerboard_container
+/proc_manager_node
+/proc_manager_nodes
+/record_bag_node
+/rl_control
+/usb_sbus
+/walkere_client
+/walkere_client
+/walkere_node
+/xsys
+/xsys_container
+/OTA/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/OTA/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/OTA/get_parameters [rcl_interfaces/srv/GetParameters]
+/OTA/list_parameters [rcl_interfaces/srv/ListParameters]
+/OTA/set_parameters [rcl_interfaces/srv/SetParameters]
+/OTA/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/audio_node/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/audio_node/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/audio_node/get_parameters [rcl_interfaces/srv/GetParameters]
+/audio_node/list_parameters [rcl_interfaces/srv/ListParameters]
+/audio_node/set_parameters [rcl_interfaces/srv/SetParameters]
+/audio_node/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/bluetooth_server_node/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/bluetooth_server_node/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/bluetooth_server_node/get_parameters [rcl_interfaces/srv/GetParameters]
+/bluetooth_server_node/list_parameters [rcl_interfaces/srv/ListParameters]
+/bluetooth_server_node/set_parameters [rcl_interfaces/srv/SetParameters]
+/bluetooth_server_node/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/bodyctrl/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/bodyctrl/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/bodyctrl/get_parameters [rcl_interfaces/srv/GetParameters]
+/bodyctrl/list_parameters [rcl_interfaces/srv/ListParameters]
+/bodyctrl/set_parameters [rcl_interfaces/srv/SetParameters]
+/bodyctrl/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/camera/camera/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/camera/camera/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/camera/camera/get_parameters [rcl_interfaces/srv/GetParameters]
+/camera/camera/list_parameters [rcl_interfaces/srv/ListParameters]
+/camera/camera/set_parameters [rcl_interfaces/srv/SetParameters]
+/camera/camera/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/camera/get_auto_white_balance [orbbec_camera_msgs/srv/GetInt32]
+/camera/get_color_exposure [orbbec_camera_msgs/srv/GetInt32]
+/camera/get_color_gain [orbbec_camera_msgs/srv/GetInt32]
+/camera/get_depth_exposure [orbbec_camera_msgs/srv/GetInt32]
+/camera/get_depth_gain [orbbec_camera_msgs/srv/GetInt32]
+/camera/get_device_info [orbbec_camera_msgs/srv/GetDeviceInfo]
+/camera/get_ldp_status [orbbec_camera_msgs/srv/GetBool]
+/camera/get_lrm_measure_distance [orbbec_camera_msgs/srv/GetInt32]
+/camera/get_ptp_config [orbbec_camera_msgs/srv/GetBool]
+/camera/get_sdk_version [orbbec_camera_msgs/srv/GetString]
+/camera/get_streams_enable [orbbec_camera_msgs/srv/GetBool]
+/camera/get_user_calib_params [orbbec_camera_msgs/srv/GetUserCalibParams]
+/camera/get_white_balance [orbbec_camera_msgs/srv/GetInt32]
+/camera/read_customer_data [orbbec_camera_msgs/srv/GetString]
+/camera/reboot_device [std_srvs/srv/Empty]
+/camera/save_images [std_srvs/srv/Empty]
+/camera/save_point_cloud [std_srvs/srv/Empty]
+/camera/send_software_trigger [std_srvs/srv/SetBool]
+/camera/set_auto_white_balance [std_srvs/srv/SetBool]
+/camera/set_color_ae_roi [orbbec_camera_msgs/srv/SetArrays]
+/camera/set_color_auto_exposure [std_srvs/srv/SetBool]
+/camera/set_color_exposure [orbbec_camera_msgs/srv/SetInt32]
+/camera/set_color_flip [std_srvs/srv/SetBool]
+/camera/set_color_gain [orbbec_camera_msgs/srv/SetInt32]
+/camera/set_color_mirror [std_srvs/srv/SetBool]
+/camera/set_color_rotation [orbbec_camera_msgs/srv/SetInt32]
+/camera/set_depth_ae_roi [orbbec_camera_msgs/srv/SetArrays]
+/camera/set_depth_auto_exposure [std_srvs/srv/SetBool]
+/camera/set_depth_exposure [orbbec_camera_msgs/srv/SetInt32]
+/camera/set_depth_flip [std_srvs/srv/SetBool]
+/camera/set_depth_gain [orbbec_camera_msgs/srv/SetInt32]
+/camera/set_depth_mirror [std_srvs/srv/SetBool]
+/camera/set_depth_rotation [orbbec_camera_msgs/srv/SetInt32]
+/camera/set_fan_work_mode [orbbec_camera_msgs/srv/SetInt32]
+/camera/set_filter [orbbec_camera_msgs/srv/SetFilter]
+/camera/set_floor_enable [std_srvs/srv/SetBool]
+/camera/set_ir_long_exposure [std_srvs/srv/SetBool]
+/camera/set_laser_enable [std_srvs/srv/SetBool]
+/camera/set_ldp_enable [std_srvs/srv/SetBool]
+/camera/set_ptp_config [std_srvs/srv/SetBool]
+/camera/set_reset_timestamp [std_srvs/srv/SetBool]
+/camera/set_streams_enable [std_srvs/srv/SetBool]
+/camera/set_sync_hosttime [std_srvs/srv/SetBool]
+/camera/set_sync_interleaverlaser [orbbec_camera_msgs/srv/SetInt32]
+/camera/set_user_calib_params [orbbec_camera_msgs/srv/SetUserCalibParams]
+/camera/set_white_balance [orbbec_camera_msgs/srv/SetInt32]
+/camera/switch_ir [orbbec_camera_msgs/srv/SetString]
+/camera/toggle_color [std_srvs/srv/SetBool]
+/camera/toggle_depth [std_srvs/srv/SetBool]
+/camera/write_customer_data [orbbec_camera_msgs/srv/SetString]
+/cloud_upgrade/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/cloud_upgrade/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/cloud_upgrade/get_parameters [rcl_interfaces/srv/GetParameters]
+/cloud_upgrade/list_parameters [rcl_interfaces/srv/ListParameters]
+/cloud_upgrade/set_parameters [rcl_interfaces/srv/SetParameters]
+/cloud_upgrade/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/diagnose/version/upgrade [bodyctrl_msgs/srv/VersionUpgrade]
+/diagnose_tiangong2_upgrade_node/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/diagnose_tiangong2_upgrade_node/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/diagnose_tiangong2_upgrade_node/get_parameters [rcl_interfaces/srv/GetParameters]
+/diagnose_tiangong2_upgrade_node/list_parameters [rcl_interfaces/srv/ListParameters]
+/diagnose_tiangong2_upgrade_node/set_parameters [rcl_interfaces/srv/SetParameters]
+/diagnose_tiangong2_upgrade_node/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/hric/motion/set_motion_mode [hric_msgs/srv/SetMotionMode]
+/hric/motion/set_motion_number [hric_msgs/srv/SetMotionNumber]
+/inspire_hand/get_angle/left_hand [bodyctrl_msgs/srv/GetAngleAct]
+/inspire_hand/get_angle/right_hand [bodyctrl_msgs/srv/GetAngleAct]
+/inspire_hand/get_error/left_hand [bodyctrl_msgs/srv/GetError]
+/inspire_hand/get_error/right_hand [bodyctrl_msgs/srv/GetError]
+/inspire_hand/get_force/left_hand [bodyctrl_msgs/srv/GetForceAct]
+/inspire_hand/get_force/right_hand [bodyctrl_msgs/srv/GetForceAct]
+/inspire_hand/get_status/left_hand [bodyctrl_msgs/srv/GetStatus]
+/inspire_hand/get_status/right_hand [bodyctrl_msgs/srv/GetStatus]
+/inspire_hand/set_angle/left_hand [bodyctrl_msgs/srv/SetAngle]
+/inspire_hand/set_angle/right_hand [bodyctrl_msgs/srv/SetAngle]
+/inspire_hand/set_angle_flexible/left_hand [bodyctrl_msgs/srv/SetAngleFlexible]
+/inspire_hand/set_angle_flexible/right_hand [bodyctrl_msgs/srv/SetAngleFlexible]
+/inspire_hand/set_clear_error/left_hand [bodyctrl_msgs/srv/SetClearError]
+/inspire_hand/set_clear_error/right_hand [bodyctrl_msgs/srv/SetClearError]
+/inspire_hand/set_force/left_hand [bodyctrl_msgs/srv/SetForce]
+/inspire_hand/set_force/right_hand [bodyctrl_msgs/srv/SetForce]
+/inspire_hand/set_speed/left_hand [bodyctrl_msgs/srv/SetSpeed]
+/inspire_hand/set_speed/right_hand [bodyctrl_msgs/srv/SetSpeed]
+/launch_ros_2101/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/launch_ros_2101/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/launch_ros_2101/get_parameters [rcl_interfaces/srv/GetParameters]
+/launch_ros_2101/list_parameters [rcl_interfaces/srv/ListParameters]
+/launch_ros_2101/set_parameters [rcl_interfaces/srv/SetParameters]
+/launch_ros_2101/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/launch_ros_4298/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/launch_ros_4298/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/launch_ros_4298/get_parameters [rcl_interfaces/srv/GetParameters]
+/launch_ros_4298/list_parameters [rcl_interfaces/srv/ListParameters]
+/launch_ros_4298/set_parameters [rcl_interfaces/srv/SetParameters]
+/launch_ros_4298/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/launch_ros_4349/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/launch_ros_4349/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/launch_ros_4349/get_parameters [rcl_interfaces/srv/GetParameters]
+/launch_ros_4349/list_parameters [rcl_interfaces/srv/ListParameters]
+/launch_ros_4349/set_parameters [rcl_interfaces/srv/SetParameters]
+/launch_ros_4349/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/launch_ros_4355/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/launch_ros_4355/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/launch_ros_4355/get_parameters [rcl_interfaces/srv/GetParameters]
+/launch_ros_4355/list_parameters [rcl_interfaces/srv/ListParameters]
+/launch_ros_4355/set_parameters [rcl_interfaces/srv/SetParameters]
+/launch_ros_4355/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/launch_ros_4358/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/launch_ros_4358/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/launch_ros_4358/get_parameters [rcl_interfaces/srv/GetParameters]
+/launch_ros_4358/list_parameters [rcl_interfaces/srv/ListParameters]
+/launch_ros_4358/set_parameters [rcl_interfaces/srv/SetParameters]
+/launch_ros_4358/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/launch_ros_4361/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/launch_ros_4361/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/launch_ros_4361/get_parameters [rcl_interfaces/srv/GetParameters]
+/launch_ros_4361/list_parameters [rcl_interfaces/srv/ListParameters]
+/launch_ros_4361/set_parameters [rcl_interfaces/srv/SetParameters]
+/launch_ros_4361/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/launch_ros_4364/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/launch_ros_4364/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/launch_ros_4364/get_parameters [rcl_interfaces/srv/GetParameters]
+/launch_ros_4364/list_parameters [rcl_interfaces/srv/ListParameters]
+/launch_ros_4364/set_parameters [rcl_interfaces/srv/SetParameters]
+/launch_ros_4364/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/launch_ros_4987/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/launch_ros_4987/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/launch_ros_4987/get_parameters [rcl_interfaces/srv/GetParameters]
+/launch_ros_4987/list_parameters [rcl_interfaces/srv/ListParameters]
+/launch_ros_4987/set_parameters [rcl_interfaces/srv/SetParameters]
+/launch_ros_4987/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/ota/ctrl_service [cloud_service/srv/RemoteCtrl]
+/ota/version/upgrade [bodyctrl_msgs/srv/VersionUpgrade]
+/powerboard/change/mode [bodyctrl_msgs/srv/VersionUpgrade]
+/powerboard/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/powerboard/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/powerboard/get_parameters [rcl_interfaces/srv/GetParameters]
+/powerboard/list_parameters [rcl_interfaces/srv/ListParameters]
+/powerboard/set_parameters [rcl_interfaces/srv/SetParameters]
+/powerboard/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/proc_manager/version/upgrade [bodyctrl_msgs/srv/VersionUpgrade]
+/proc_manager_node/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/proc_manager_node/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/proc_manager_node/get_parameters [rcl_interfaces/srv/GetParameters]
+/proc_manager_node/list_parameters [rcl_interfaces/srv/ListParameters]
+/proc_manager_node/set_parameters [rcl_interfaces/srv/SetParameters]
+/proc_manager_node/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/record_bag_node/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/record_bag_node/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/record_bag_node/get_parameters [rcl_interfaces/srv/GetParameters]
+/record_bag_node/list_parameters [rcl_interfaces/srv/ListParameters]
+/record_bag_node/set_parameters [rcl_interfaces/srv/SetParameters]
+/record_bag_node/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/rl_control/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/rl_control/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/rl_control/get_parameters [rcl_interfaces/srv/GetParameters]
+/rl_control/list_parameters [rcl_interfaces/srv/ListParameters]
+/rl_control/set_parameters [rcl_interfaces/srv/SetParameters]
+/rl_control/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/robot/cloud/register_command_handler [cloud_service/srv/Register]
+/usb_sbus/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/usb_sbus/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/usb_sbus/get_parameters [rcl_interfaces/srv/GetParameters]
+/usb_sbus/list_parameters [rcl_interfaces/srv/ListParameters]
+/usb_sbus/set_parameters [rcl_interfaces/srv/SetParameters]
+/usb_sbus/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/walkere_client/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/walkere_client/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/walkere_client/get_parameters [rcl_interfaces/srv/GetParameters]
+/walkere_client/list_parameters [rcl_interfaces/srv/ListParameters]
+/walkere_client/set_parameters [rcl_interfaces/srv/SetParameters]
+/walkere_client/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/walkere_node/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/walkere_node/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/walkere_node/get_parameters [rcl_interfaces/srv/GetParameters]
+/walkere_node/list_parameters [rcl_interfaces/srv/ListParameters]
+/walkere_node/set_parameters [rcl_interfaces/srv/SetParameters]
+/walkere_node/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+/xsys/describe_parameters [rcl_interfaces/srv/DescribeParameters]
+/xsys/get_parameter_types [rcl_interfaces/srv/GetParameterTypes]
+/xsys/get_parameters [rcl_interfaces/srv/GetParameters]
+/xsys/get_serial_number [xsys_msgs/srv/GetSerialNumber]
+/xsys/list_parameters [rcl_interfaces/srv/ListParameters]
+/xsys/set_parameters [rcl_interfaces/srv/SetParameters]
+/xsys/set_parameters_atomically [rcl_interfaces/srv/SetParametersAtomically]
+==================== /arm_6dof_left ====================
+Type: geometry_msgs/msg/WrenchStamped
+
+Publisher count: 1
+
+Node name: bodyctrl
+Node namespace: /
+Topic type: geometry_msgs/msg/WrenchStamped
+Endpoint type: PUBLISHER
+GID: 01.0f.26.79.89.13.c0.7c.00.00.00.00.00.00.6e.03.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 2
+
+Node name: walkere_node
+Node namespace: /
+Topic type: geometry_msgs/msg/WrenchStamped
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.65.10.91.67.00.00.00.00.00.00.37.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: diagnose_tiangong2_upgrade_node
+Node namespace: /
+Topic type: geometry_msgs/msg/WrenchStamped
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.b1.11.f3.21.00.00.00.00.00.00.29.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+--- SAMPLE MESSAGE ---
+Terminated
+==================== /arm_6dof_right ====================
+Type: geometry_msgs/msg/WrenchStamped
+
+Publisher count: 1
+
+Node name: bodyctrl
+Node namespace: /
+Topic type: geometry_msgs/msg/WrenchStamped
+Endpoint type: PUBLISHER
+GID: 01.0f.26.79.89.13.c0.7c.00.00.00.00.00.00.6f.03.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 2
+
+Node name: walkere_node
+Node namespace: /
+Topic type: geometry_msgs/msg/WrenchStamped
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.65.10.91.67.00.00.00.00.00.00.38.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: diagnose_tiangong2_upgrade_node
+Node namespace: /
+Topic type: geometry_msgs/msg/WrenchStamped
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.b1.11.f3.21.00.00.00.00.00.00.2a.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+--- SAMPLE MESSAGE ---
+Terminated
+==================== /bodycontrol_state ====================
+Type: bodyctrl_msgs/msg/NodeState
+
+Publisher count: 3
+
+Node name: bodyctrl
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/NodeState
+Endpoint type: PUBLISHER
+GID: 01.0f.26.79.89.13.c0.7c.00.00.00.00.00.00.1a.03.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: bluetooth_server_node
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/NodeState
+Endpoint type: PUBLISHER
+GID: 01.0f.42.bf.39.11.9d.f8.00.00.00.00.00.00.1b.03.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: powerboard
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/NodeState
+Endpoint type: PUBLISHER
+GID: 01.0f.42.bf.b5.11.c7.bf.00.00.00.00.00.00.1a.03.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 1
+
+Node name: proc_manager_node
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/NodeState
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.d8.10.f0.37.00.00.00.00.00.00.22.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+--- SAMPLE MESSAGE ---
+The message type 'bodyctrl_msgs/msg/NodeState' is invalid
+==================== /arm/status ====================
+Type: bodyctrl_msgs/msg/MotorStatusMsg
+
+Publisher count: 1
+
+Node name: bodyctrl
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/MotorStatusMsg
+Endpoint type: PUBLISHER
+GID: 01.0f.26.79.89.13.c0.7c.00.00.00.00.00.00.28.03.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 3
+
+Node name: rl_control
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/MotorStatusMsg
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.26.79.e2.17.c3.c1.00.00.00.00.00.00.15.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: record_bag_node
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/MotorStatusMsg
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.65.11.a8.08.00.00.00.00.00.00.20.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: diagnose_tiangong2_upgrade_node
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/MotorStatusMsg
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.b1.11.f3.21.00.00.00.00.00.00.30.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+--- SAMPLE MESSAGE ---
+The message type 'bodyctrl_msgs/msg/MotorStatusMsg' is invalid
+==================== /leg/status ====================
+Type: bodyctrl_msgs/msg/MotorStatusMsg
+
+Publisher count: 1
+
+Node name: bodyctrl
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/MotorStatusMsg
+Endpoint type: PUBLISHER
+GID: 01.0f.26.79.89.13.c0.7c.00.00.00.00.00.00.3c.03.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 3
+
+Node name: rl_control
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/MotorStatusMsg
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.26.79.e2.17.c3.c1.00.00.00.00.00.00.14.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: record_bag_node
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/MotorStatusMsg
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.65.11.a8.08.00.00.00.00.00.00.1c.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: diagnose_tiangong2_upgrade_node
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/MotorStatusMsg
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.b1.11.f3.21.00.00.00.00.00.00.25.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+--- SAMPLE MESSAGE ---
+The message type 'bodyctrl_msgs/msg/MotorStatusMsg' is invalid
+==================== /head/status ====================
+Type: bodyctrl_msgs/msg/MotorStatusMsg
+
+Publisher count: 1
+
+Node name: bodyctrl
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/MotorStatusMsg
+Endpoint type: PUBLISHER
+GID: 01.0f.26.79.89.13.c0.7c.00.00.00.00.00.00.36.03.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 2
+
+Node name: record_bag_node
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/MotorStatusMsg
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.65.11.a8.08.00.00.00.00.00.00.17.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: diagnose_tiangong2_upgrade_node
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/MotorStatusMsg
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.b1.11.f3.21.00.00.00.00.00.00.24.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+--- SAMPLE MESSAGE ---
+The message type 'bodyctrl_msgs/msg/MotorStatusMsg' is invalid
+==================== /waist/status ====================
+Type: bodyctrl_msgs/msg/MotorStatusMsg
+
+Publisher count: 1
+
+Node name: bodyctrl
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/MotorStatusMsg
+Endpoint type: PUBLISHER
+GID: 01.0f.26.79.89.13.c0.7c.00.00.00.00.00.00.2f.03.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 3
+
+Node name: rl_control
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/MotorStatusMsg
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.26.79.e2.17.c3.c1.00.00.00.00.00.00.16.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: record_bag_node
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/MotorStatusMsg
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.65.11.a8.08.00.00.00.00.00.00.13.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: diagnose_tiangong2_upgrade_node
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/MotorStatusMsg
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.b1.11.f3.21.00.00.00.00.00.00.26.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+--- SAMPLE MESSAGE ---
+The message type 'bodyctrl_msgs/msg/MotorStatusMsg' is invalid
+==================== /power/board/ctrl ====================
+Type: bodyctrl_msgs/msg/PowerBoardCtrl
+
+Publisher count: 1
+
+Node name: audio_node
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/PowerBoardCtrl
+Endpoint type: PUBLISHER
+GID: 01.0f.42.bf.55.11.96.97.00.00.00.00.00.00.1b.03.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 0
+
+--- SAMPLE MESSAGE ---
+The message type 'bodyctrl_msgs/msg/PowerBoardCtrl' is invalid
+==================== /power/board/status ====================
+Type: bodyctrl_msgs/msg/PowerStatus
+
+Publisher count: 1
+
+Node name: powerboard
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/PowerStatus
+Endpoint type: PUBLISHER
+GID: 01.0f.42.bf.b5.11.c7.bf.00.00.00.00.00.00.1e.03.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 3
+
+Node name: bluetooth_server_node
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/PowerStatus
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.39.11.9d.f8.00.00.00.00.00.00.1a.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: record_bag_node
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/PowerStatus
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.65.11.a8.08.00.00.00.00.00.00.22.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: diagnose_tiangong2_upgrade_node
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/PowerStatus
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.b1.11.f3.21.00.00.00.00.00.00.2b.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+--- SAMPLE MESSAGE ---
+The message type 'bodyctrl_msgs/msg/PowerStatus' is invalid
+==================== /sbus_data ====================
+Type: sensor_msgs/msg/Joy
+
+Publisher count: 1
+
+Node name: usb_sbus
+Node namespace: /
+Topic type: sensor_msgs/msg/Joy
+Endpoint type: PUBLISHER
+GID: 01.0f.42.bf.58.11.38.86.00.00.00.00.00.00.12.03.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 3
+
+Node name: record_bag_node
+Node namespace: /
+Topic type: sensor_msgs/msg/Joy
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.65.11.a8.08.00.00.00.00.00.00.18.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: diagnose_tiangong2_upgrade_node
+Node namespace: /
+Topic type: sensor_msgs/msg/Joy
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.b1.11.f3.21.00.00.00.00.00.00.2e.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: proc_manager_node
+Node namespace: /
+Topic type: sensor_msgs/msg/Joy
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.d8.10.f0.37.00.00.00.00.00.00.24.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+--- SAMPLE MESSAGE ---
+header:
+  stamp:
+    sec: 1791201540
+    nanosec: 917466902
+  frame_id: ''
+axes:
+- -0.0
+- -0.0
+- -0.0
+- -0.0
+- -0.0
+- -0.0
+- -0.0
+- -0.0
+- -1.0
+- -1.0
+- -1.0
+- -1.0
+buttons: []
+---
+==================== /imu/status ====================
+Type: bodyctrl_msgs/msg/Imu
+
+Publisher count: 1
+
+Node name: bodyctrl
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/Imu
+Endpoint type: PUBLISHER
+GID: 01.0f.26.79.89.13.c0.7c.00.00.00.00.00.00.40.03.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Subscription count: 4
+
+Node name: rl_control
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/Imu
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.26.79.e2.17.c3.c1.00.00.00.00.00.00.17.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: BEST_EFFORT
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: walkere_node
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/Imu
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.65.10.91.67.00.00.00.00.00.00.35.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: record_bag_node
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/Imu
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.65.11.a8.08.00.00.00.00.00.00.16.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+Node name: diagnose_tiangong2_upgrade_node
+Node namespace: /
+Topic type: bodyctrl_msgs/msg/Imu
+Endpoint type: SUBSCRIPTION
+GID: 01.0f.42.bf.b1.11.f3.21.00.00.00.00.00.00.2c.04.00.00.00.00.00.00.00.00
+QoS profile:
+  Reliability: RELIABLE
+  History (Depth): UNKNOWN
+  Durability: VOLATILE
+  Lifespan: Infinite
+  Deadline: Infinite
+  Liveliness: AUTOMATIC
+  Liveliness lease duration: Infinite
+
+--- SAMPLE MESSAGE ---
+The message type 'bodyctrl_msgs/msg/Imu' is invalid
+==================== STANDARD CONTROL SEARCH ====================
+/bodycontrol_state [bodyctrl_msgs/msg/NodeState]
+/inspire_hand/ctrl/left_hand [sensor_msgs/msg/JointState]
+/inspire_hand/ctrl/right_hand [sensor_msgs/msg/JointState]
+/inspire_hand/state/left_hand [sensor_msgs/msg/JointState]
+/inspire_hand/state/right_hand [sensor_msgs/msg/JointState]
+/node/status [bodyctrl_msgs/msg/NodeState]
+/camera/get_streams_enable [orbbec_camera_msgs/srv/GetBool]
+/camera/set_fan_work_mode [orbbec_camera_msgs/srv/SetInt32]
+/camera/set_floor_enable [std_srvs/srv/SetBool]
+/camera/set_laser_enable [std_srvs/srv/SetBool]
+/camera/set_ldp_enable [std_srvs/srv/SetBool]
+/camera/set_streams_enable [std_srvs/srv/SetBool]
+/hric/motion/set_motion_mode [hric_msgs/srv/SetMotionMode]
+/powerboard/change/mode [bodyctrl_msgs/srv/VersionUpgrade]
+Inspection complete. Files saved in:
+/home/nvidia/ros2-bridge-inspection

@@ -75,6 +75,10 @@ target_include_directories(${PROJECT_NAME} PUBLIC includes vendors/glm)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE glfw glad stb imgui imguizmo assimp tinyxml2::tinyxml2 OpenGL::GL)
 
+if(WIN32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ws2_32)
+endif()
+
 if(NGINE_ENABLE_OPENCV)
     target_compile_definitions(${PROJECT_NAME} PRIVATE NGINE_ENABLE_OPENCV)
     target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_LIBS})

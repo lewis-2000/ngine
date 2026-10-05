@@ -2,7 +2,10 @@
 
 #include <cstdint>
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <iomanip>
+#include <sstream>
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -111,6 +114,9 @@ namespace Mara
 
     void Editor::update(float deltaTime)
     {
+        m_TelemetryClient.update();
+        applyTelemetryToRobot();
+
         if (m_CameraCapture.isOpen())
             m_CameraCapture.update();
 
@@ -125,6 +131,72 @@ namespace Mara
             return;
 
         setSimulationTime(m_AnimationTime + deltaTime);
+    }
+
+    void Editor::applyTelemetryToRobot()
+    {
+        if (!m_ApplyTelemetryToRobot ||
+            m_SimulationRunning ||
+            !m_Robot ||
+            !m_Robot->isLoaded() ||
+            !m_TelemetryClient.connected() ||
+            m_TelemetryClient.stale())
+            return;
+
+        const auto &motors = m_TelemetryClient.snapshot().motors;
+        const auto positionFor = [&motors](int id) -> const MotorTelemetry *
+        {
+            const auto it = std::find_if(
+                motors.begin(),
+                motors.end(),
+                [id](const MotorTelemetry &motor) { return motor.id == id; });
+            return it == motors.end() ? nullptr : &*it;
+        };
+
+        const auto applyGroup = [&positionFor, this](
+                                    const std::array<int, 7> &ids,
+                                    const std::array<const char *, 7> &joints)
+        {
+            for (std::size_t index = 0; index < ids.size(); ++index)
+            {
+                const MotorTelemetry *motor = positionFor(ids[index]);
+                if (motor && motor->error == 0)
+                    m_Robot->setJointPosition(joints[index], motor->position);
+            }
+        };
+
+        applyGroup(
+            {11, 12, 13, 14, 15, 16, 17},
+            {"left_joint1", "shoulder_roll_l_joint", "left_joint3",
+             "elbow_l_joint", "left_joint5", "left_joint6", "left_joint7"});
+        applyGroup(
+            {21, 22, 23, 24, 25, 26, 27},
+            {"right_joint1", "shoulder_roll_r_joint", "right_joint3",
+             "elbow_r_joint", "right_joint5", "right_joint6", "right_joint7"});
+
+        const auto applySix = [&positionFor, this](
+                                  const std::array<int, 6> &ids,
+                                  const std::array<const char *, 6> &joints)
+        {
+            for (std::size_t index = 0; index < ids.size(); ++index)
+            {
+                const MotorTelemetry *motor = positionFor(ids[index]);
+                if (motor && motor->error == 0)
+                    m_Robot->setJointPosition(joints[index], motor->position);
+            }
+        };
+
+        applySix(
+            {51, 52, 53, 54, 55, 56},
+            {"hip_roll_l_joint", "hip_yaw_l_joint", "hip_pitch_l_joint",
+             "knee_pitch_l_joint", "ankle_pitch_l_joint", "ankle_roll_l_joint"});
+        applySix(
+            {61, 62, 63, 64, 65, 66},
+            {"hip_roll_r_joint", "hip_yaw_r_joint", "hip_pitch_r_joint",
+             "knee_pitch_r_joint", "ankle_pitch_r_joint", "ankle_roll_r_joint"});
+
+        if (const MotorTelemetry *motor = positionFor(31); motor && motor->error == 0)
+            m_Robot->setJointPosition("waist_joint", motor->position);
     }
 
     void Editor::setGizmoMatrices(
@@ -330,6 +402,7 @@ namespace Mara
         drawMotion();
         drawConsole();
         drawPosePanel();
+        drawTelemetry();
     }
 
     void Editor::beginSceneRender(int width, int height)
@@ -393,6 +466,7 @@ namespace Mara
             ImGui::MenuItem("Sensor visualization", nullptr, &m_ShowSensors);
             ImGui::MenuItem("Console", nullptr, &m_ShowConsole);
             ImGui::MenuItem("Camera preview", nullptr, &m_ShowPosePanel);
+            ImGui::MenuItem("Robot telemetry", nullptr, &m_ShowTelemetry);
             ImGui::EndMenu();
         }
 
@@ -404,7 +478,13 @@ namespace Mara
                 ? ImVec4(0.82f, 0.48f, 0.08f, 1.0f)
                 : ImVec4(0.30f, 0.38f, 0.48f, 1.0f));
         ImGui::SameLine();
-        drawStatusBadge("ROS2 OFFLINE", ImVec4(0.55f, 0.36f, 0.36f, 1.0f));
+        drawStatusBadge(
+            m_TelemetryClient.connected() && !m_TelemetryClient.stale()
+                ? "ROS2 LIVE"
+                : "ROS2 READ-ONLY",
+            m_TelemetryClient.connected() && !m_TelemetryClient.stale()
+                ? ImVec4(0.15f, 0.58f, 0.36f, 1.0f)
+                : ImVec4(0.55f, 0.36f, 0.36f, 1.0f));
         ImGui::SameLine();
         drawStatusBadge("SAFE", ImVec4(0.15f, 0.58f, 0.36f, 1.0f));
 
@@ -467,7 +547,7 @@ namespace Mara
 
         drawPanelHeader("[3D]", "SCENE VIEWPORT", "PERSPECTIVE");
         ImGui::SameLine();
-        ImGui::TextDisabled("| humanoid | 60 FPS");
+        ImGui::TextDisabled("| Tienkung Robot | FPS");
         ImGui::SameLine(ImGui::GetContentRegionAvail().x - 340.0f);
         if (ImGui::SmallButton("Front"))
             m_CameraResetRequested = true;
@@ -784,6 +864,123 @@ namespace Mara
         ImGui::Text("[00:00:01] Physics system ready (0 contacts)");
         ImGui::Text("[00:00:01] Sensors online: lidar, camera");
 
+        ImGui::End();
+    }
+
+    void Editor::drawTelemetry()
+    {
+        if (!m_ShowTelemetry)
+            return;
+
+        ImGui::Begin("Robot telemetry", &m_ShowTelemetry, ImGuiWindowFlags_NoTitleBar);
+        drawPanelHeader(
+            "[ROS]",
+            "ROBOT TELEMETRY",
+            m_TelemetryClient.connected() ? "READ-ONLY LINK" : "DISCONNECTED");
+
+        ImGui::TextDisabled(
+            "Relay: %s:%u",
+            m_TelemetryClient.host().c_str(),
+            static_cast<unsigned>(m_TelemetryClient.port()));
+        ImGui::SameLine();
+        if (ImGui::Button(m_TelemetryClient.connected() ? "Reconnect" : "Connect"))
+            m_TelemetryClient.connect(m_TelemetryClient.host(), m_TelemetryClient.port());
+        ImGui::SameLine();
+        if (ImGui::Button("Disconnect"))
+            m_TelemetryClient.shutdown();
+
+        if (!m_TelemetryClient.lastError().empty())
+            ImGui::TextColored(
+                ImVec4(0.68f, 0.24f, 0.20f, 1.0f),
+                "%s",
+                m_TelemetryClient.lastError().c_str());
+
+        const auto &snapshot = m_TelemetryClient.snapshot();
+        const bool live = m_TelemetryClient.connected() && !m_TelemetryClient.stale();
+        ImGui::TextColored(
+            live ? ImVec4(0.15f, 0.58f, 0.36f, 1.0f)
+                 : ImVec4(0.55f, 0.36f, 0.36f, 1.0f),
+            live ? "LIVE DATA" : "WAITING FOR TELEMETRY");
+        ImGui::SameLine();
+        ImGui::TextDisabled("Frames: %llu", static_cast<unsigned long long>(snapshot.sequence));
+        ImGui::Separator();
+
+        ImGui::Text(
+            "Body control: %s",
+            snapshot.bodyControlState == 1 ? "RUNNING" : "UNKNOWN/OFFLINE");
+        ImGui::Text(
+            "Process manager: %s",
+            snapshot.processState == 1 ? "RUNNING" : "UNKNOWN/OFFLINE");
+        ImGui::Text(
+            "Battery: %.1f V  %.1f A  %.1f W",
+            snapshot.batteryVoltage,
+            snapshot.batteryCurrent,
+            snapshot.batteryPower);
+        ImGui::Text(
+            "IMU R/P/Y: %.3f / %.3f / %.3f",
+            snapshot.imuRoll,
+            snapshot.imuPitch,
+            snapshot.imuYaw);
+        ImGui::Checkbox(
+            "Apply healthy motor feedback to model",
+            &m_ApplyTelemetryToRobot);
+        ImGui::SameLine();
+        ImGui::TextDisabled("(read-only, position units not converted)");
+        ImGui::Separator();
+
+        if (ImGui::BeginTable(
+                "motorTelemetry",
+                7,
+                ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
+                    ImGuiTableFlags_ScrollY,
+                ImVec2(0.0f, 220.0f)))
+        {
+            const char *columns[] = {"Motor", "Group", "Position", "Speed", "Current", "Temp", "State"};
+            ImGui::TableSetupColumn(columns[0]);
+            ImGui::TableSetupColumn(columns[1]);
+            ImGui::TableSetupColumn(columns[2]);
+            ImGui::TableSetupColumn(columns[3]);
+            ImGui::TableSetupColumn(columns[4]);
+            ImGui::TableSetupColumn(columns[5]);
+            ImGui::TableSetupColumn(columns[6]);
+            ImGui::TableHeadersRow();
+            for (const auto &motor : snapshot.motors)
+            {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::Text("%d", motor.id);
+                ImGui::TableNextColumn();
+                const char *group =
+                    motor.id < 10 ? "Head" :
+                    motor.id < 20 ? "Left arm" :
+                    motor.id < 30 ? "Right arm" :
+                    motor.id == 31 ? "Waist" :
+                    motor.id < 60 ? "Left leg" : "Right leg";
+                ImGui::TextUnformatted(group);
+                ImGui::TableNextColumn();
+                ImGui::Text("%.4f", motor.position);
+                ImGui::TableNextColumn();
+                ImGui::Text("%.4f", motor.speed);
+                ImGui::TableNextColumn();
+                ImGui::Text("%.3f", motor.current);
+                ImGui::TableNextColumn();
+                ImGui::Text("%.1f C", motor.temperature);
+                ImGui::TableNextColumn();
+                if (motor.error == 0)
+                    ImGui::TextColored(
+                        ImVec4(0.15f, 0.58f, 0.36f, 1.0f),
+                        "OK");
+                else
+                    ImGui::TextColored(
+                        ImVec4(0.68f, 0.24f, 0.20f, 1.0f),
+                        "%u",
+                        motor.error);
+            }
+            ImGui::EndTable();
+        }
+
+        ImGui::TextDisabled(
+            "Read-only feedback. Position units are vendor-reported; no conversion is applied.");
         ImGui::End();
     }
 
