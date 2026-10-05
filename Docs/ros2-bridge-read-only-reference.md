@@ -226,8 +226,16 @@ with:
 python3 /path/to/ngine/scripts/ros2_telemetry_relay.py \
   --bind 0.0.0.0 \
   --port 8765 \
-  --rate 20
+  --rate 20 \
+  --camera-rate 5
 ```
+
+The relay also subscribes read-only to the confirmed RGB camera topic
+`/camera/color/image_raw/compressed` (`sensor_msgs/msg/CompressedImage`).
+It forwards the latest JPEG payload as base64 in the telemetry JSON under
+`camera_jpeg`, limited to `--camera-rate` frames per second. NGine decodes the
+frame and displays it in **View > Camera preview** while preserving its aspect
+ratio. No camera-control service is called.
 
 NGine connects to the Ubuntu host at `192.168.41.1:8765` by default, matching the
 current SSH connection `ubuntu@192.168.41.1`. If the host address changes, the

@@ -115,6 +115,7 @@ namespace Mara
     void Editor::update(float deltaTime)
     {
         m_TelemetryClient.update();
+        updateRemoteCameraTexture();
         applyTelemetryToRobot();
 
         if (m_CameraCapture.isOpen())
@@ -163,6 +164,7 @@ namespace Mara
                 if (motor && motor->error == 0)
                     m_Robot->setJointPosition(joints[index], motor->position);
             }
+
         };
 
         applyGroup(
@@ -197,6 +199,46 @@ namespace Mara
 
         if (const MotorTelemetry *motor = positionFor(31); motor && motor->error == 0)
             m_Robot->setJointPosition("waist_joint", motor->position);
+    }
+
+    void Editor::updateRemoteCameraTexture()
+    {
+        const auto &snapshot = m_TelemetryClient.snapshot();
+        if (snapshot.cameraSequence == m_RemoteCameraSequence ||
+            snapshot.cameraRgb.empty() ||
+            snapshot.cameraWidth <= 0 ||
+            snapshot.cameraHeight <= 0)
+            return;
+
+        if (m_RemoteCameraTexture == 0)
+        {
+            glGenTextures(1, &m_RemoteCameraTexture);
+            glBindTexture(GL_TEXTURE_2D, m_RemoteCameraTexture);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        }
+        else
+        {
+            glBindTexture(GL_TEXTURE_2D, m_RemoteCameraTexture);
+        }
+
+        glTexImage2D(
+            GL_TEXTURE_2D,
+            0,
+            GL_RGB8,
+            snapshot.cameraWidth,
+            snapshot.cameraHeight,
+            0,
+            GL_RGB,
+            GL_UNSIGNED_BYTE,
+            snapshot.cameraRgb.data());
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        m_RemoteCameraSequence = snapshot.cameraSequence;
+        m_RemoteCameraWidth = snapshot.cameraWidth;
+        m_RemoteCameraHeight = snapshot.cameraHeight;
     }
 
     void Editor::setGizmoMatrices(
@@ -1004,7 +1046,14 @@ namespace Mara
             ImVec4(0.25f, 0.70f, 0.38f, 1.0f),
             "READY");
         ImGui::Separator();
-        ImGui::TextDisabled("Pose detection will be added after camera capture is validated.");
+        const bool remoteCameraAvailable =
+            m_RemoteCameraTexture != 0 &&
+            m_TelemetryClient.connected() &&
+            !m_TelemetryClient.stale();
+        ImGui::TextDisabled(
+            remoteCameraAvailable
+                ? "ROS 2 camera stream (read-only)."
+                : "Waiting for the ROS 2 camera stream.");
 
         const ImVec2 canvasPosition = ImGui::GetCursorScreenPos();
         const ImVec2 canvasSize(
@@ -1019,7 +1068,30 @@ namespace Mara
             IM_COL32(18, 22, 29, 255),
             4.0f);
 
-        if (m_CameraCapture.isOpen())
+        if (remoteCameraAvailable)
+        {
+            const float sourceAspect =
+                static_cast<float>(m_RemoteCameraWidth) /
+                static_cast<float>(m_RemoteCameraHeight);
+            const float canvasAspect = canvasSize.x / canvasSize.y;
+            ImVec2 imageSize = canvasSize;
+            if (sourceAspect > canvasAspect)
+                imageSize.y = canvasSize.x / sourceAspect;
+            else
+                imageSize.x = canvasSize.y * sourceAspect;
+            const ImVec2 imagePosition(
+                canvasPosition.x + (canvasSize.x - imageSize.x) * 0.5f,
+                canvasPosition.y + (canvasSize.y - imageSize.y) * 0.5f);
+            drawList->AddImage(
+                static_cast<ImTextureID>(
+                    static_cast<uintptr_t>(m_RemoteCameraTexture)),
+                imagePosition,
+                ImVec2(imagePosition.x + imageSize.x, imagePosition.y + imageSize.y),
+            ImVec2(0.0f, 0.0f),
+            ImVec2(1.0f, 1.0f),
+                IM_COL32(255, 255, 255, 255));
+        }
+        else if (m_CameraCapture.isOpen())
         {
             drawList->AddImage(
                 static_cast<ImTextureID>(
@@ -1033,7 +1105,7 @@ namespace Mara
                 IM_COL32(255, 255, 255, 255));
         }
 
-        if (!m_CameraCapture.isOpen())
+        if (!remoteCameraAvailable && !m_CameraCapture.isOpen())
         {
             const char *message = "Camera capture is unavailable";
             const ImVec2 textSize = ImGui::CalcTextSize(message);
@@ -1046,8 +1118,10 @@ namespace Mara
         }
 
         ImGui::TextDisabled(
-            m_CameraCapture.isOpen()
-                ? "Live camera feed."
+            remoteCameraAvailable
+                ? "Live ROS 2 camera feed."
+                : m_CameraCapture.isOpen()
+                    ? "Live local camera feed."
                 : m_CameraCapture.lastError().c_str());
         ImGui::End();
         ImGui::PopStyleColor();
@@ -1076,6 +1150,12 @@ namespace Mara
     {
         if (!m_Initialized)
             return;
+
+        if (m_RemoteCameraTexture != 0)
+        {
+            glDeleteTextures(1, &m_RemoteCameraTexture);
+            m_RemoteCameraTexture = 0;
+        }
 
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();

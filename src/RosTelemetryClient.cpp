@@ -8,6 +8,8 @@
 #include <regex>
 #include <sstream>
 
+#include <stb_image.h>
+
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -66,6 +68,57 @@ namespace Mara
             if (!extractNumber(text, key, number))
                 return false;
             value = static_cast<int>(number);
+            return true;
+        }
+
+        std::vector<std::uint8_t> decodeBase64(const std::string &encoded)
+        {
+            static constexpr char alphabet[] =
+                "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+            std::vector<std::uint8_t> decoded;
+            int value = 0;
+            int bits = -8;
+            for (const unsigned char character : encoded)
+            {
+                if (character == '=')
+                    break;
+                const char *position = std::strchr(alphabet, character);
+                if (!position)
+                    continue;
+                value = (value << 6) + static_cast<int>(position - alphabet);
+                bits += 6;
+                if (bits >= 0)
+                {
+                    decoded.push_back(static_cast<std::uint8_t>((value >> bits) & 0xff));
+                    bits -= 8;
+                }
+            }
+            return decoded;
+        }
+
+        bool extractString(
+            const std::string &text,
+            const std::string &key,
+            std::string &value)
+        {
+            const std::string marker = "\"" + key + "\"";
+            const std::size_t keyPosition = text.find(marker);
+            if (keyPosition == std::string::npos)
+                return false;
+
+            const std::size_t separator = text.find(':', keyPosition + marker.size());
+            if (separator == std::string::npos)
+                return false;
+
+            const std::size_t firstQuote = text.find('"', separator + 1);
+            if (firstQuote == std::string::npos)
+                return false;
+
+            const std::size_t secondQuote = text.find('"', firstQuote + 1);
+            if (secondQuote == std::string::npos)
+                return false;
+
+            value = text.substr(firstQuote + 1, secondQuote - firstQuote - 1);
             return true;
         }
     }
@@ -185,6 +238,11 @@ namespace Mara
             if (count > 0)
             {
                 m_ReceiveBuffer.append(buffer, static_cast<std::size_t>(count));
+                if (m_ReceiveBuffer.size() > 8u * 1024u * 1024u)
+                {
+                    setError("Telemetry frame is too large");
+                    return;
+                }
                 continue;
             }
             if (count == 0)
@@ -233,9 +291,45 @@ namespace Mara
         if (extractNumber(line, "imu_yaw", value))
             m_Snapshot.imuYaw = value;
 
+        std::string encodedCamera;
+        if (extractString(line, "camera_jpeg", encodedCamera) &&
+            encodedCamera.size() <= 4u * 1024u * 1024u)
+        {
+            const std::vector<std::uint8_t> jpeg = decodeBase64(encodedCamera);
+            int width = 0;
+            int height = 0;
+            int channels = 0;
+            unsigned char *rgb = nullptr;
+            if (!jpeg.empty())
+            {
+                rgb = stbi_load_from_memory(
+                    jpeg.data(),
+                    static_cast<int>(jpeg.size()),
+                    &width,
+                    &height,
+                    &channels,
+                    3);
+            }
+            if (rgb)
+            {
+                m_Snapshot.cameraRgb.assign(
+                    rgb,
+                    rgb + static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 3u);
+                m_Snapshot.cameraWidth = width;
+                m_Snapshot.cameraHeight = height;
+                ++m_Snapshot.cameraSequence;
+                stbi_image_free(rgb);
+            }
+        }
+
+        const std::size_t cameraPosition = line.find("\"camera_jpeg\"");
+        const std::string motorData =
+            cameraPosition == std::string::npos
+                ? line
+                : line.substr(0, cameraPosition);
         const std::regex motorExpression(
             "\\{\\s*\"id\"\\s*:\\s*([0-9]+).*?\"position\"\\s*:\\s*(-?[0-9.eE+]+).*?\"speed\"\\s*:\\s*(-?[0-9.eE+]+).*?\"current\"\\s*:\\s*(-?[0-9.eE+]+).*?\"temperature\"\\s*:\\s*(-?[0-9.eE+]+).*?\"error\"\\s*:\\s*([0-9]+)\\s*\\}");
-        for (std::sregex_iterator it(line.begin(), line.end(), motorExpression), end;
+        for (std::sregex_iterator it(motorData.begin(), motorData.end(), motorExpression), end;
              it != end;
              ++it)
         {

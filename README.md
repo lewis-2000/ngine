@@ -137,7 +137,7 @@ Then run these commands in the Ubuntu shell:
 ```bash
 source /opt/ros/humble/setup.bash
 source /home/ubuntu/ros2_tg/src/x86/benti/TG2.0-Plus_linux-x86_ros2-general_v2.0.7_20260527_155108/install/setup.bash
-python3 /home/ubuntu/ros2_telemetry_relay.py --bind 0.0.0.0 --port 8765 --rate 20
+python3 /home/ubuntu/ros2_telemetry_relay.py --bind 0.0.0.0 --port 8765 --rate 20 --camera-rate 5
 ```
 
 Keep this SSH terminal running. The relay should report that it is waiting for
@@ -159,12 +159,19 @@ In the editor:
 1. Open **View > Robot telemetry**.
 2. Click **Connect**.
 3. Confirm that the panel shows **LIVE DATA** and increasing frame counts.
-4. Enable **Apply healthy motor feedback to model**.
+4. Open **View > Camera preview** to see the read-only RGB stream.
+5. Enable **Apply healthy motor feedback to model** if model feedback is also
+   wanted.
 
 The last option applies healthy, read-only motor positions to the simulated
 robot for visual comparison. It does not send anything back to ROS 2. Position
 values are currently shown and applied as vendor-reported values; no
 degree/radian conversion is performed.
+
+The camera preview subscribes to `/camera/color/image_raw/compressed` through
+the relay. Frames are JPEG-encoded and rate-limited to five frames per second
+by default. The preview preserves the camera aspect ratio and falls back to
+the local camera preview if no ROS camera frame is available.
 
 If the connection fails, test the network port from Windows:
 

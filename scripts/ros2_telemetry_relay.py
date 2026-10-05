@@ -6,6 +6,7 @@ It forwards newline-delimited JSON over TCP to an NGine instance.
 """
 
 import argparse
+import base64
 import json
 import socket
 import threading
@@ -14,15 +15,20 @@ from typing import Any
 
 import rclpy
 from bodyctrl_msgs.msg import Imu, MotorStatusMsg, NodeState, PowerStatus
+from sensor_msgs.msg import CompressedImage
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 
 
 class TelemetryRelay(Node):
-    def __init__(self, client: socket.socket, rate: float) -> None:
+    def __init__(self, client: socket.socket, rate: float, camera_rate: float) -> None:
         super().__init__("ngine_read_only_telemetry_relay")
         self._client = client
         self._lock = threading.Lock()
         self._rate = rate
+        self._camera_rate = camera_rate
+        self._camera_jpeg = ""
+        self._last_camera_send = 0.0
         self._motors: dict[int, dict[str, Any]] = {}
         self._data: dict[str, Any] = {
             "bodycontrol_state": -1,
@@ -61,6 +67,12 @@ class TelemetryRelay(Node):
             10,
         )
         self.create_subscription(Imu, "/imu/status", self._imu_callback, 10)
+        self.create_subscription(
+            CompressedImage,
+            "/camera/color/image_raw/compressed",
+            self._camera_callback,
+            qos_profile_sensor_data,
+        )
         self.create_timer(1.0 / rate, self._send_snapshot)
 
     def _motor_status_callback(self, message: MotorStatusMsg) -> None:
@@ -95,11 +107,20 @@ class TelemetryRelay(Node):
             self._data["imu_pitch"] = float(message.euler.pitch)
             self._data["imu_yaw"] = float(message.euler.yaw)
 
+    def _camera_callback(self, message: CompressedImage) -> None:
+        with self._lock:
+            if len(message.data) <= 2 * 1024 * 1024:
+                self._camera_jpeg = base64.b64encode(bytes(message.data)).decode("ascii")
+
     def _send_snapshot(self) -> None:
         with self._lock:
             payload = dict(self._data)
             payload["type"] = "telemetry"
             payload["motors"] = list(self._motors.values())
+            now = time.monotonic()
+            if self._camera_jpeg and now - self._last_camera_send >= 1.0 / self._camera_rate:
+                payload["camera_jpeg"] = self._camera_jpeg
+                self._last_camera_send = now
         encoded = (json.dumps(payload, separators=(",", ":")) + "\n").encode("utf-8")
         try:
             self._client.sendall(encoded)
@@ -113,6 +134,7 @@ def main() -> None:
     parser.add_argument("--bind", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--rate", type=float, default=20.0)
+    parser.add_argument("--camera-rate", type=float, default=5.0)
     args = parser.parse_args()
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -125,7 +147,7 @@ def main() -> None:
     client.settimeout(None)
 
     rclpy.init()
-    node = TelemetryRelay(client, args.rate)
+    node = TelemetryRelay(client, args.rate, args.camera_rate)
     try:
         rclpy.spin(node)
     finally:

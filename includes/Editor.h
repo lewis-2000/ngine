@@ -61,6 +61,7 @@ namespace Mara
         void drawPosePanel();
         void drawTelemetry();
         void applyTelemetryToRobot();
+        void updateRemoteCameraTexture();
         void setSimulationTime(float time);
         void resetSimulation();
 
@@ -73,6 +74,10 @@ namespace Mara
         bool m_ShowPosePanel = false;
         bool m_ShowTelemetry = true;
         bool m_ApplyTelemetryToRobot = false;
+        unsigned int m_RemoteCameraTexture = 0;
+        std::uint64_t m_RemoteCameraSequence = 0;
+        int m_RemoteCameraWidth = 0;
+        int m_RemoteCameraHeight = 0;
         RosTelemetryClient m_TelemetryClient;
         CameraCapture m_CameraCapture;
         std::unique_ptr<PoseEstimator> m_PoseEstimator;

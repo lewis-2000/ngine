@@ -27,6 +27,10 @@ namespace Mara
         float imuRoll = 0.0f;
         float imuPitch = 0.0f;
         float imuYaw = 0.0f;
+        std::vector<std::uint8_t> cameraRgb;
+        int cameraWidth = 0;
+        int cameraHeight = 0;
+        std::uint64_t cameraSequence = 0;
         std::uint64_t sequence = 0;
     };
 
