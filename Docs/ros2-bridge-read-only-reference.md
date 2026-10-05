@@ -227,7 +227,8 @@ python3 /path/to/ngine/scripts/ros2_telemetry_relay.py \
   --bind 0.0.0.0 \
   --port 8765 \
   --rate 20 \
-  --camera-rate 5
+  --camera-rate 1 \
+  --depth-scale 4
 ```
 
 The relay also subscribes read-only to the confirmed RGB camera topic
@@ -237,11 +238,29 @@ It forwards the latest JPEG payload as base64 in the telemetry JSON under
 frame and displays it in **View > Camera preview** while preserving its aspect
 ratio. No camera-control service is called.
 
+The relay also subscribes read-only to `/camera/depth/image_raw`
+(`sensor_msgs/msg/Image`) when the encoding is `16UC1` and little-endian. The
+raw depth bytes are downsampled by `--depth-scale` in each dimension and
+forwarded as base64 under `depth_raw16`, with `depth_width` and `depth_height`.
+NGine displays this data in the **Depth** tab as a normalized grayscale preview.
+The display normalization is for
+visualization only; the depth unit still needs to be confirmed from the
+camera's calibration/driver documentation.
+
 NGine connects to the Ubuntu host at `192.168.41.1:8765` by default, matching the
 current SSH connection `ubuntu@192.168.41.1`. If the host address changes, the
 client default in `RosTelemetryClient.h` must be updated before rebuilding.
 The relay should be protected by a firewall or restricted to a trusted
 interface; it contains no authentication.
+
+The relay accepts one NGine client at a time. If the client disconnects, its
+socket is closed while the ROS subscriptions remain active; the relay then
+waits for a new NGine connection without restarting ROS 2.
+
+RGB and depth can be disabled independently with `--disable-camera` and
+`--disable-depth`. A disabled stream has no ROS subscription and is omitted
+from telemetry packets. This is preferable to merely hiding a preview because
+it also avoids the decode and network cost.
 
 Each line sent to NGine has this shape:
 

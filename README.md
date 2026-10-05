@@ -137,11 +137,29 @@ Then run these commands in the Ubuntu shell:
 ```bash
 source /opt/ros/humble/setup.bash
 source /home/ubuntu/ros2_tg/src/x86/benti/TG2.0-Plus_linux-x86_ros2-general_v2.0.7_20260527_155108/install/setup.bash
-python3 /home/ubuntu/ros2_telemetry_relay.py --bind 0.0.0.0 --port 8765 --rate 20 --camera-rate 5
+python3 /home/ubuntu/ros2_telemetry_relay.py --bind 0.0.0.0 --port 8765 --rate 20 --camera-rate 1 --depth-scale 4
 ```
 
-Keep this SSH terminal running. The relay should report that it is waiting for
-an NGine telemetry client.
+The RGB and depth streams can be selected independently. Use one of these
+options when starting the relay:
+
+```bash
+# RGB camera only
+python3 /home/ubuntu/ros2_telemetry_relay.py --bind 0.0.0.0 --port 8765 --rate 20 --camera-rate 1 --disable-depth
+
+# Depth only
+python3 /home/ubuntu/ros2_telemetry_relay.py --bind 0.0.0.0 --port 8765 --rate 20 --camera-rate 1 --depth-scale 4 --disable-camera
+
+# Motor/state telemetry only
+python3 /home/ubuntu/ros2_telemetry_relay.py --bind 0.0.0.0 --port 8765 --rate 20 --disable-camera --disable-depth
+```
+
+The default is to forward both RGB and depth. Disabled streams are not
+subscribed to, decoded, or transmitted, which avoids their performance cost.
+
+Keep this SSH terminal running. The relay reports when NGine connects. If
+NGine disconnects or is restarted, the relay keeps its ROS subscriptions alive
+and waits for the next connection on the same port.
 
 ### 3. Start NGine and connect
 
@@ -168,10 +186,18 @@ robot for visual comparison. It does not send anything back to ROS 2. Position
 values are currently shown and applied as vendor-reported values; no
 degree/radian conversion is performed.
 
-The camera preview subscribes to `/camera/color/image_raw/compressed` through
-the relay. Frames are JPEG-encoded and rate-limited to five frames per second
-by default. The preview preserves the camera aspect ratio and falls back to
-the local camera preview if no ROS camera frame is available.
+The camera preview subscribes to `/camera/color/image_raw/compressed` and the
+depth preview subscribes to `/camera/depth/image_raw` through the relay. RGB
+frames are JPEG-encoded. Depth frames are downsampled by four in each
+dimension and forwarded as read-only `16UC1` data. Both are rate-limited to
+one frame per second by default. Use the
+**RGB** and **Depth** tabs in the camera preview. The previews preserve their
+camera aspect ratios and the RGB view falls back to the local camera preview
+if no ROS camera frame is available.
+
+The detailed preview reports the received frame dimensions but does not request
+higher resolution. The relay keeps only the newest frame, so opening the
+detailed view does not increase network traffic or decode workload.
 
 If the connection fails, test the network port from Windows:
 

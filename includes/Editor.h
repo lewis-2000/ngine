@@ -72,12 +72,17 @@ namespace Mara
         bool m_ShowSensors = false;
         bool m_ShowConsole = false;
         bool m_ShowPosePanel = false;
+        bool m_ShowSensorOverlays = true;
         bool m_ShowTelemetry = true;
         bool m_ApplyTelemetryToRobot = false;
         unsigned int m_RemoteCameraTexture = 0;
+        unsigned int m_RemoteDepthTexture = 0;
         std::uint64_t m_RemoteCameraSequence = 0;
+        std::uint64_t m_RemoteDepthSequence = 0;
         int m_RemoteCameraWidth = 0;
         int m_RemoteCameraHeight = 0;
+        int m_RemoteDepthWidth = 0;
+        int m_RemoteDepthHeight = 0;
         RosTelemetryClient m_TelemetryClient;
         CameraCapture m_CameraCapture;
         std::unique_ptr<PoseEstimator> m_PoseEstimator;

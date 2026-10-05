@@ -1,7 +1,10 @@
 #pragma once
 
 #include <cstdint>
+#include <atomic>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace Mara
@@ -31,6 +34,10 @@ namespace Mara
         int cameraWidth = 0;
         int cameraHeight = 0;
         std::uint64_t cameraSequence = 0;
+        std::vector<std::uint16_t> depth;
+        int depthWidth = 0;
+        int depthHeight = 0;
+        std::uint64_t depthSequence = 0;
         std::uint64_t sequence = 0;
     };
 
@@ -47,18 +54,19 @@ namespace Mara
         void shutdown();
 
         bool connect(const std::string &host, std::uint16_t port);
-        bool connected() const { return m_Connected; }
-        bool hasData() const { return m_HasData; }
+        bool connected() const;
+        bool hasData() const;
         bool stale() const;
 
         const RosTelemetrySnapshot &snapshot() const { return m_Snapshot; }
-        const std::string &lastError() const { return m_LastError; }
+        std::string lastError() const;
         const std::string &host() const { return m_Host; }
         std::uint16_t port() const { return m_Port; }
 
     private:
         void setError(const std::string &error);
-        bool parseLine(const std::string &line);
+        bool parseLine(const std::string &line, RosTelemetrySnapshot &snapshot);
+        void receiveLoop();
 
         std::intptr_t m_Socket = -1;
         bool m_Connected = false;
@@ -68,6 +76,12 @@ namespace Mara
         std::string m_ReceiveBuffer;
         std::string m_LastError;
         RosTelemetrySnapshot m_Snapshot;
+        RosTelemetrySnapshot m_WorkerSnapshot;
+        RosTelemetrySnapshot m_PendingSnapshot;
+        bool m_PendingData = false;
+        mutable std::mutex m_StateMutex;
+        std::atomic<bool> m_StopRequested = false;
+        std::thread m_ReceiveThread;
         std::uint64_t m_LastDataTimeMs = 0;
     };
 }

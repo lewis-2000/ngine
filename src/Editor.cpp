@@ -21,6 +21,16 @@ namespace Mara
 {
     namespace
     {
+        constexpr ImU32 kViewportCardBackground = IM_COL32(26, 31, 39, 242);
+        constexpr ImU32 kViewportCardBorder = IM_COL32(105, 122, 143, 220);
+        constexpr ImU32 kViewportImageBackground = IM_COL32(13, 17, 22, 255);
+        constexpr ImU32 kViewportText = IM_COL32(232, 238, 246, 255);
+        constexpr ImU32 kViewportMutedText = IM_COL32(165, 176, 190, 255);
+        constexpr ImU32 kTextureTint = IM_COL32(255, 255, 255, 255);
+        const ImVec4 kViewportPanelBackground(0.10f, 0.12f, 0.15f, 1.0f);
+        const ImVec4 kViewportAccent(0.35f, 0.78f, 0.95f, 1.0f);
+        const ImVec4 kHealthyStatus(0.25f, 0.70f, 0.38f, 1.0f);
+
         void drawPanelHeader(
             const char *icon,
             const char *title,
@@ -208,37 +218,75 @@ namespace Mara
             snapshot.cameraRgb.empty() ||
             snapshot.cameraWidth <= 0 ||
             snapshot.cameraHeight <= 0)
-            return;
-
-        if (m_RemoteCameraTexture == 0)
         {
-            glGenTextures(1, &m_RemoteCameraTexture);
+            if (snapshot.depthSequence == m_RemoteDepthSequence)
+                return;
+        }
+
+        if (!snapshot.cameraRgb.empty() &&
+            snapshot.cameraSequence != m_RemoteCameraSequence &&
+            snapshot.cameraWidth > 0 &&
+            snapshot.cameraHeight > 0)
+        {
+            if (m_RemoteCameraTexture == 0)
+                glGenTextures(1, &m_RemoteCameraTexture);
             glBindTexture(GL_TEXTURE_2D, m_RemoteCameraTexture);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                GL_RGB8,
+                snapshot.cameraWidth,
+                snapshot.cameraHeight,
+                0,
+                GL_RGB,
+                GL_UNSIGNED_BYTE,
+                snapshot.cameraRgb.data());
+            m_RemoteCameraSequence = snapshot.cameraSequence;
+            m_RemoteCameraWidth = snapshot.cameraWidth;
+            m_RemoteCameraHeight = snapshot.cameraHeight;
         }
-        else
+
+        if (snapshot.depthSequence != m_RemoteDepthSequence &&
+            !snapshot.depth.empty() &&
+            snapshot.depthWidth > 0 &&
+            snapshot.depthHeight > 0)
         {
-            glBindTexture(GL_TEXTURE_2D, m_RemoteCameraTexture);
+            std::vector<std::uint8_t> depthRgb(snapshot.depth.size() * 3u);
+            for (std::size_t index = 0; index < snapshot.depth.size(); ++index)
+            {
+                const std::uint16_t millimeters = snapshot.depth[index];
+                const std::uint8_t intensity = static_cast<std::uint8_t>(
+                    std::clamp(255 - (static_cast<int>(millimeters) * 255 / 5000), 0, 255));
+                depthRgb[index * 3u] = intensity;
+                depthRgb[index * 3u + 1u] = intensity;
+                depthRgb[index * 3u + 2u] = intensity;
+            }
+            if (m_RemoteDepthTexture == 0)
+                glGenTextures(1, &m_RemoteDepthTexture);
+            glBindTexture(GL_TEXTURE_2D, m_RemoteDepthTexture);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                GL_RGB8,
+                snapshot.depthWidth,
+                snapshot.depthHeight,
+                0,
+                GL_RGB,
+                GL_UNSIGNED_BYTE,
+                depthRgb.data());
+            m_RemoteDepthSequence = snapshot.depthSequence;
+            m_RemoteDepthWidth = snapshot.depthWidth;
+            m_RemoteDepthHeight = snapshot.depthHeight;
         }
-
-        glTexImage2D(
-            GL_TEXTURE_2D,
-            0,
-            GL_RGB8,
-            snapshot.cameraWidth,
-            snapshot.cameraHeight,
-            0,
-            GL_RGB,
-            GL_UNSIGNED_BYTE,
-            snapshot.cameraRgb.data());
         glBindTexture(GL_TEXTURE_2D, 0);
-
-        m_RemoteCameraSequence = snapshot.cameraSequence;
-        m_RemoteCameraWidth = snapshot.cameraWidth;
-        m_RemoteCameraHeight = snapshot.cameraHeight;
     }
 
     void Editor::setGizmoMatrices(
@@ -375,7 +423,7 @@ namespace Mara
         ImGui::DockBuilderSplitNode(
             viewportNode,
             ImGuiDir_Down,
-            0.22f,
+            0.30f,
             &bottomNode,
             &finalViewportNode);
 
@@ -412,6 +460,10 @@ namespace Mara
 
         ImGui::DockBuilderDockWindow(
             "Console",
+            bottomNode);
+
+        ImGui::DockBuilderDockWindow(
+            "Robot telemetry",
             bottomNode);
 
         // Finish building the layout
@@ -507,6 +559,7 @@ namespace Mara
             ImGui::MenuItem("Grid", nullptr, &m_ShowGrid);
             ImGui::MenuItem("Sensor visualization", nullptr, &m_ShowSensors);
             ImGui::MenuItem("Console", nullptr, &m_ShowConsole);
+            ImGui::MenuItem("Sensor overlays", nullptr, &m_ShowSensorOverlays);
             ImGui::MenuItem("Camera preview", nullptr, &m_ShowPosePanel);
             ImGui::MenuItem("Robot telemetry", nullptr, &m_ShowTelemetry);
             ImGui::EndMenu();
@@ -622,6 +675,8 @@ namespace Mara
                 ImVec2(0, 1),
                 ImVec2(1, 0));
 
+            const ImVec2 sceneViewportMin = ImGui::GetItemRectMin();
+            const ImVec2 sceneViewportMax = ImGui::GetItemRectMax();
             m_ViewportHovered = ImGui::IsItemHovered();
 
             if (m_Robot && m_Robot->isLoaded() &&
@@ -666,6 +721,123 @@ namespace Mara
             ImGui::Text("RMB orbit | MMB pan");
             ImGui::Text("Wheel or +/- zoom");
             ImGui::EndChild();
+
+            if (m_ShowSensorOverlays)
+            {
+                const ImVec2 viewportMin = sceneViewportMin;
+                const ImVec2 viewportMax = sceneViewportMax;
+                const float cardWidth = glm::min(220.0f, viewportSize.x * 0.30f);
+                const float cardHeight = cardWidth * 0.64f;
+                const float cardGap = 8.0f;
+                const float right = viewportMax.x - 14.0f;
+                const float top = viewportMin.y + 14.0f;
+                ImDrawList *drawList = ImGui::GetWindowDrawList();
+
+                const auto drawSensorCard = [
+                    drawList,
+                    cardWidth,
+                    cardHeight,
+                    right,
+                    cardGap,
+                    top,
+                    this](
+                    const char *title,
+                    ImTextureID texture,
+                    int imageWidth,
+                    int imageHeight,
+                    bool available,
+                    float y)
+                {
+                    const ImVec2 cardMin(right - cardWidth, y);
+                    const ImVec2 cardMax(right, y + cardHeight);
+                    drawList->AddRectFilled(cardMin, cardMax, kViewportCardBackground, 5.0f);
+                    drawList->AddRect(
+                        cardMin,
+                        cardMax,
+                        kViewportCardBorder,
+                        5.0f);
+                    drawList->AddText(
+                        ImVec2(cardMin.x + 9.0f, cardMin.y + 6.0f),
+                        kViewportText,
+                        title);
+                    drawList->AddText(
+                        ImVec2(cardMax.x - 28.0f, cardMin.y + 6.0f),
+                        kViewportMutedText,
+                        "[+]");
+
+                    const ImVec2 imageMin(cardMin.x + 7.0f, cardMin.y + 25.0f);
+                    const ImVec2 imageMax(cardMax.x - 7.0f, cardMax.y - 7.0f);
+                    drawList->AddRectFilled(
+                        imageMin,
+                        imageMax,
+                        kViewportImageBackground,
+                        3.0f);
+                    if (available && imageWidth > 0 && imageHeight > 0)
+                    {
+                        const float sourceAspect =
+                            static_cast<float>(imageWidth) /
+                            static_cast<float>(imageHeight);
+                        const float canvasAspect =
+                            (imageMax.x - imageMin.x) / (imageMax.y - imageMin.y);
+                        ImVec2 imageSize(
+                            imageMax.x - imageMin.x,
+                            imageMax.y - imageMin.y);
+                        if (sourceAspect > canvasAspect)
+                            imageSize.y = imageSize.x / sourceAspect;
+                        else
+                            imageSize.x = imageSize.y * sourceAspect;
+                        const ImVec2 centeredMin(
+                            imageMin.x + ((imageMax.x - imageMin.x) - imageSize.x) * 0.5f,
+                            imageMin.y + ((imageMax.y - imageMin.y) - imageSize.y) * 0.5f);
+                        drawList->AddImage(
+                            texture,
+                            centeredMin,
+                            ImVec2(centeredMin.x + imageSize.x, centeredMin.y + imageSize.y),
+                            ImVec2(0.0f, 0.0f),
+                            ImVec2(1.0f, 1.0f));
+                    }
+                    else
+                    {
+                        const char *status = m_TelemetryClient.connected()
+                                                 ? "NO SIGNAL"
+                                                 : "DISCONNECTED";
+                        const ImVec2 statusSize = ImGui::CalcTextSize(status);
+                        drawList->AddText(
+                            ImVec2(
+                                imageMin.x + ((imageMax.x - imageMin.x) - statusSize.x) * 0.5f,
+                                imageMin.y + ((imageMax.y - imageMin.y) - statusSize.y) * 0.5f),
+                            kViewportMutedText,
+                            status);
+                    }
+
+                    ImGui::PushID(title);
+                    ImGui::SetCursorScreenPos(cardMin);
+                    if (ImGui::InvisibleButton(
+                            "SensorCard",
+                            ImVec2(cardWidth, cardHeight)))
+                        m_ShowPosePanel = true;
+                    ImGui::PopID();
+                };
+
+                const bool sensorLinkLive =
+                    m_TelemetryClient.connected() && !m_TelemetryClient.stale();
+                drawSensorCard(
+                    "RGB CAMERA",
+                    static_cast<ImTextureID>(
+                        static_cast<uintptr_t>(m_RemoteCameraTexture)),
+                    m_RemoteCameraWidth,
+                    m_RemoteCameraHeight,
+                    sensorLinkLive && m_RemoteCameraTexture != 0,
+                    top);
+                drawSensorCard(
+                    "DEPTH",
+                    static_cast<ImTextureID>(
+                        static_cast<uintptr_t>(m_RemoteDepthTexture)),
+                    m_RemoteDepthWidth,
+                    m_RemoteDepthHeight,
+                    sensorLinkLive && m_RemoteDepthTexture != 0,
+                    top + cardHeight + cardGap);
+            }
         }
         ImGui::End();
     }
@@ -914,7 +1086,7 @@ namespace Mara
         if (!m_ShowTelemetry)
             return;
 
-        ImGui::Begin("Robot telemetry", &m_ShowTelemetry, ImGuiWindowFlags_NoTitleBar);
+        ImGui::Begin("Robot telemetry", &m_ShowTelemetry);
         drawPanelHeader(
             "[ROS]",
             "ROBOT TELEMETRY",
@@ -930,12 +1102,16 @@ namespace Mara
         ImGui::SameLine();
         if (ImGui::Button("Disconnect"))
             m_TelemetryClient.shutdown();
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Sensor overlays"))
+            m_ShowSensorOverlays = !m_ShowSensorOverlays;
 
-        if (!m_TelemetryClient.lastError().empty())
+        const std::string telemetryError = m_TelemetryClient.lastError();
+        if (!telemetryError.empty())
             ImGui::TextColored(
                 ImVec4(0.68f, 0.24f, 0.20f, 1.0f),
                 "%s",
-                m_TelemetryClient.lastError().c_str());
+                telemetryError.c_str());
 
         const auto &snapshot = m_TelemetryClient.snapshot();
         const bool live = m_TelemetryClient.connected() && !m_TelemetryClient.stale();
@@ -975,7 +1151,7 @@ namespace Mara
                 7,
                 ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                     ImGuiTableFlags_ScrollY,
-                ImVec2(0.0f, 220.0f)))
+        ImVec2(0.0f, glm::max(100.0f, ImGui::GetContentRegionAvail().y - 116.0f))))
         {
             const char *columns[] = {"Motor", "Group", "Position", "Speed", "Current", "Temp", "State"};
             ImGui::TableSetupColumn(columns[0]);
@@ -1032,94 +1208,147 @@ namespace Mara
             return;
 
         ImGui::SetNextWindowSize(ImVec2(420.0f, 460.0f), ImGuiCond_FirstUseEver);
-        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.07f, 0.09f, 0.12f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, kViewportPanelBackground);
         ImGui::Begin(
             "Camera preview",
             &m_ShowPosePanel,
             ImGuiWindowFlags_NoDocking);
 
-        ImGui::TextColored(ImVec4(0.35f, 0.78f, 0.95f, 1.0f), "[CAM]");
+        ImGui::TextColored(kViewportAccent, "[CAM]");
         ImGui::SameLine();
         ImGui::TextUnformatted("CAMERA PREVIEW");
         ImGui::SameLine(ImGui::GetContentRegionAvail().x - 64.0f);
         ImGui::TextColored(
-            ImVec4(0.25f, 0.70f, 0.38f, 1.0f),
+            kHealthyStatus,
             "READY");
         ImGui::Separator();
         const bool remoteCameraAvailable =
             m_RemoteCameraTexture != 0 &&
             m_TelemetryClient.connected() &&
             !m_TelemetryClient.stale();
+        const bool remoteDepthAvailable =
+            m_RemoteDepthTexture != 0 &&
+            m_TelemetryClient.connected() &&
+            !m_TelemetryClient.stale();
         ImGui::TextDisabled(
-            remoteCameraAvailable
-                ? "ROS 2 camera stream (read-only)."
+            remoteCameraAvailable || remoteDepthAvailable
+                ? "ROS 2 camera and depth streams (read-only)."
                 : "Waiting for the ROS 2 camera stream.");
 
-        const ImVec2 canvasPosition = ImGui::GetCursorScreenPos();
-        const ImVec2 canvasSize(
-            ImGui::GetContentRegionAvail().x,
-            glm::max(220.0f, ImGui::GetContentRegionAvail().y - 44.0f));
-        ImGui::InvisibleButton("PoseCanvas", canvasSize);
-
-        ImDrawList *drawList = ImGui::GetWindowDrawList();
-        drawList->AddRectFilled(
-            canvasPosition,
-            ImVec2(canvasPosition.x + canvasSize.x, canvasPosition.y + canvasSize.y),
-            IM_COL32(18, 22, 29, 255),
-            4.0f);
-
-        if (remoteCameraAvailable)
+        if (ImGui::BeginTabBar("SensorPreviewTabs"))
         {
-            const float sourceAspect =
-                static_cast<float>(m_RemoteCameraWidth) /
-                static_cast<float>(m_RemoteCameraHeight);
-            const float canvasAspect = canvasSize.x / canvasSize.y;
-            ImVec2 imageSize = canvasSize;
-            if (sourceAspect > canvasAspect)
-                imageSize.y = canvasSize.x / sourceAspect;
-            else
-                imageSize.x = canvasSize.y * sourceAspect;
-            const ImVec2 imagePosition(
-                canvasPosition.x + (canvasSize.x - imageSize.x) * 0.5f,
-                canvasPosition.y + (canvasSize.y - imageSize.y) * 0.5f);
-            drawList->AddImage(
-                static_cast<ImTextureID>(
-                    static_cast<uintptr_t>(m_RemoteCameraTexture)),
-                imagePosition,
-                ImVec2(imagePosition.x + imageSize.x, imagePosition.y + imageSize.y),
-            ImVec2(0.0f, 0.0f),
-            ImVec2(1.0f, 1.0f),
-                IM_COL32(255, 255, 255, 255));
-        }
-        else if (m_CameraCapture.isOpen())
-        {
-            drawList->AddImage(
-                static_cast<ImTextureID>(
-                    static_cast<uintptr_t>(m_CameraCapture.texture())),
-                canvasPosition,
-                ImVec2(
-                    canvasPosition.x + canvasSize.x,
-                    canvasPosition.y + canvasSize.y),
-                ImVec2(0.0f, 0.0f),
-                ImVec2(1.0f, 1.0f),
-                IM_COL32(255, 255, 255, 255));
-        }
+            if (ImGui::BeginTabItem("RGB"))
+            {
+                if (remoteCameraAvailable)
+                    ImGui::TextDisabled(
+                        "Received %d x %d | latest frame only",
+                        m_RemoteCameraWidth,
+                        m_RemoteCameraHeight);
+                else
+                    ImGui::TextDisabled("RGB stream unavailable");
+                const ImVec2 canvasPosition = ImGui::GetCursorScreenPos();
+                const ImVec2 canvasSize(
+                    ImGui::GetContentRegionAvail().x,
+                    glm::max(220.0f, ImGui::GetContentRegionAvail().y - 52.0f));
+                ImGui::InvisibleButton("RgbCameraCanvas", canvasSize);
+                ImDrawList *drawList = ImGui::GetWindowDrawList();
+                drawList->AddRectFilled(
+                    canvasPosition,
+                    ImVec2(canvasPosition.x + canvasSize.x, canvasPosition.y + canvasSize.y),
+                    kViewportImageBackground,
+                    4.0f);
+                if (remoteCameraAvailable)
+                {
+                    const float sourceAspect =
+                        static_cast<float>(m_RemoteCameraWidth) /
+                        static_cast<float>(m_RemoteCameraHeight);
+                    const float canvasAspect = canvasSize.x / canvasSize.y;
+                    ImVec2 imageSize = canvasSize;
+                    if (sourceAspect > canvasAspect)
+                        imageSize.y = canvasSize.x / sourceAspect;
+                    else
+                        imageSize.x = canvasSize.y * sourceAspect;
+                    const ImVec2 imagePosition(
+                        canvasPosition.x + (canvasSize.x - imageSize.x) * 0.5f,
+                        canvasPosition.y + (canvasSize.y - imageSize.y) * 0.5f);
+                    drawList->AddImage(
+                        static_cast<ImTextureID>(
+                            static_cast<uintptr_t>(m_RemoteCameraTexture)),
+                        imagePosition,
+                        ImVec2(imagePosition.x + imageSize.x, imagePosition.y + imageSize.y),
+                        ImVec2(0.0f, 0.0f),
+                        ImVec2(1.0f, 1.0f),
+                        kTextureTint);
+                }
+                else if (m_CameraCapture.isOpen())
+                {
+                    drawList->AddImage(
+                        static_cast<ImTextureID>(
+                            static_cast<uintptr_t>(m_CameraCapture.texture())),
+                        canvasPosition,
+                        ImVec2(canvasPosition.x + canvasSize.x, canvasPosition.y + canvasSize.y),
+                        ImVec2(0.0f, 0.0f),
+                        ImVec2(1.0f, 1.0f),
+                        kTextureTint);
+                }
+                ImGui::EndTabItem();
+            }
 
-        if (!remoteCameraAvailable && !m_CameraCapture.isOpen())
-        {
-            const char *message = "Camera capture is unavailable";
-            const ImVec2 textSize = ImGui::CalcTextSize(message);
-            drawList->AddText(
-                ImVec2(
-                    canvasPosition.x + (canvasSize.x - textSize.x) * 0.5f,
-                    canvasPosition.y + (canvasSize.y - textSize.y) * 0.5f),
-                IM_COL32(190, 198, 210, 255),
-                message);
+            if (ImGui::BeginTabItem("Depth"))
+            {
+                if (remoteDepthAvailable)
+                    ImGui::TextDisabled(
+                        "Received %d x %d | downsampled relay frame",
+                        m_RemoteDepthWidth,
+                        m_RemoteDepthHeight);
+                else
+                    ImGui::TextDisabled("Depth stream unavailable");
+                const ImVec2 canvasPosition = ImGui::GetCursorScreenPos();
+                const ImVec2 canvasSize(
+                    ImGui::GetContentRegionAvail().x,
+                    glm::max(220.0f, ImGui::GetContentRegionAvail().y - 52.0f));
+                ImGui::InvisibleButton("DepthCameraCanvas", canvasSize);
+                ImDrawList *drawList = ImGui::GetWindowDrawList();
+                drawList->AddRectFilled(
+                    canvasPosition,
+                    ImVec2(canvasPosition.x + canvasSize.x, canvasPosition.y + canvasSize.y),
+                    kViewportImageBackground,
+                    4.0f);
+                if (remoteDepthAvailable)
+                {
+                    const float sourceAspect =
+                        static_cast<float>(m_RemoteDepthWidth) /
+                        static_cast<float>(m_RemoteDepthHeight);
+                    const float canvasAspect = canvasSize.x / canvasSize.y;
+                    ImVec2 imageSize = canvasSize;
+                    if (sourceAspect > canvasAspect)
+                        imageSize.y = canvasSize.x / sourceAspect;
+                    else
+                        imageSize.x = canvasSize.y * sourceAspect;
+                    const ImVec2 imagePosition(
+                        canvasPosition.x + (canvasSize.x - imageSize.x) * 0.5f,
+                        canvasPosition.y + (canvasSize.y - imageSize.y) * 0.5f);
+                    drawList->AddImage(
+                        static_cast<ImTextureID>(
+                            static_cast<uintptr_t>(m_RemoteDepthTexture)),
+                        imagePosition,
+                        ImVec2(imagePosition.x + imageSize.x, imagePosition.y + imageSize.y),
+                        ImVec2(0.0f, 0.0f),
+                        ImVec2(1.0f, 1.0f),
+                        kTextureTint);
+                }
+                else
+                {
+                    ImGui::TextDisabled("Waiting for /camera/depth/image_raw.");
+                }
+                ImGui::EndTabItem();
+            }
+            ImGui::EndTabBar();
         }
 
         ImGui::TextDisabled(
-            remoteCameraAvailable
-                ? "Live ROS 2 camera feed."
+            remoteCameraAvailable || remoteDepthAvailable
+                ? "Live ROS 2 feed. Latest frames only; no full-resolution request is made."
                 : m_CameraCapture.isOpen()
                     ? "Live local camera feed."
                 : m_CameraCapture.lastError().c_str());
@@ -1155,6 +1384,11 @@ namespace Mara
         {
             glDeleteTextures(1, &m_RemoteCameraTexture);
             m_RemoteCameraTexture = 0;
+        }
+        if (m_RemoteDepthTexture != 0)
+        {
+            glDeleteTextures(1, &m_RemoteDepthTexture);
+            m_RemoteDepthTexture = 0;
         }
 
         ImGui_ImplOpenGL3_Shutdown();

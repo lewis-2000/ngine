@@ -128,6 +128,24 @@ namespace Mara
         shutdown();
     }
 
+    bool RosTelemetryClient::connected() const
+    {
+        std::lock_guard<std::mutex> lock(m_StateMutex);
+        return m_Connected;
+    }
+
+    bool RosTelemetryClient::hasData() const
+    {
+        std::lock_guard<std::mutex> lock(m_StateMutex);
+        return m_HasData;
+    }
+
+    std::string RosTelemetryClient::lastError() const
+    {
+        std::lock_guard<std::mutex> lock(m_StateMutex);
+        return m_LastError;
+    }
+
     bool RosTelemetryClient::connect(const std::string &host, std::uint16_t port)
     {
         shutdown();
@@ -195,37 +213,62 @@ namespace Mara
         const int flags = fcntl(static_cast<int>(m_Socket), F_GETFL, 0);
         fcntl(static_cast<int>(m_Socket), F_SETFL, flags | O_NONBLOCK);
 #endif
-        m_Connected = true;
-        m_LastError.clear();
+        {
+            std::lock_guard<std::mutex> lock(m_StateMutex);
+            m_Connected = true;
+            m_StopRequested = false;
+            m_LastError.clear();
+            m_PendingData = false;
+            m_WorkerSnapshot = {};
+            m_Snapshot = {};
+            m_HasData = false;
+        }
+        m_ReceiveThread = std::thread(&RosTelemetryClient::receiveLoop, this);
         return true;
     }
 
     void RosTelemetryClient::shutdown()
     {
+        m_StopRequested = true;
         closeSocket(m_Socket);
+        if (m_ReceiveThread.joinable())
+            m_ReceiveThread.join();
+        std::lock_guard<std::mutex> lock(m_StateMutex);
         m_Connected = false;
         m_ReceiveBuffer.clear();
     }
 
     void RosTelemetryClient::setError(const std::string &error)
     {
+        std::lock_guard<std::mutex> lock(m_StateMutex);
         m_LastError = error;
-        shutdown();
+        m_Connected = false;
     }
 
     bool RosTelemetryClient::stale() const
     {
+        std::lock_guard<std::mutex> lock(m_StateMutex);
         return !m_HasData || nowMs() - m_LastDataTimeMs > 1000;
     }
 
     void RosTelemetryClient::update()
     {
-        if (!m_Connected)
-            return;
-
-        char buffer[8192];
-        while (true)
+        std::lock_guard<std::mutex> lock(m_StateMutex);
+        if (m_PendingData)
         {
+            m_Snapshot = std::move(m_PendingSnapshot);
+            m_PendingData = false;
+            m_HasData = true;
+            m_LastDataTimeMs = nowMs();
+        }
+    }
+
+    void RosTelemetryClient::receiveLoop()
+    {
+        char buffer[8192];
+        while (!m_StopRequested)
+        {
+            bool receivedData = false;
 #ifdef _WIN32
             const int count = recv(
                 static_cast<SOCKET>(m_Socket),
@@ -238,58 +281,68 @@ namespace Mara
             if (count > 0)
             {
                 m_ReceiveBuffer.append(buffer, static_cast<std::size_t>(count));
+                receivedData = true;
                 if (m_ReceiveBuffer.size() > 8u * 1024u * 1024u)
                 {
                     setError("Telemetry frame is too large");
                     return;
                 }
-                continue;
             }
-            if (count == 0)
+            else if (count == 0)
             {
                 setError("Telemetry relay disconnected");
                 return;
             }
+            else
+            {
 #ifdef _WIN32
-            const int error = WSAGetLastError();
-            if (error != WSAEWOULDBLOCK)
+                const int error = WSAGetLastError();
+                if (error != WSAEWOULDBLOCK)
 #else
-            if (errno != EWOULDBLOCK && errno != EAGAIN)
+                if (errno != EWOULDBLOCK && errno != EAGAIN)
 #endif
-                setError("Telemetry receive failed");
-            break;
-        }
+                {
+                    setError("Telemetry receive failed");
+                    return;
+                }
+            }
 
-        std::size_t newline = 0;
-        while ((newline = m_ReceiveBuffer.find('\n')) != std::string::npos)
-        {
-            std::string line = m_ReceiveBuffer.substr(0, newline);
-            m_ReceiveBuffer.erase(0, newline + 1);
-            if (!line.empty())
-                parseLine(line);
+            std::size_t newline = 0;
+            while ((newline = m_ReceiveBuffer.find('\n')) != std::string::npos)
+            {
+                std::string line = m_ReceiveBuffer.substr(0, newline);
+                m_ReceiveBuffer.erase(0, newline + 1);
+                if (!line.empty())
+                    parseLine(line, m_WorkerSnapshot);
+            }
+
+            if (!receivedData)
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
 
-    bool RosTelemetryClient::parseLine(const std::string &line)
+    bool RosTelemetryClient::parseLine(
+        const std::string &line,
+        RosTelemetrySnapshot &snapshot)
     {
         int integer = 0;
         float value = 0.0f;
         if (extractInteger(line, "bodycontrol_state", integer))
-            m_Snapshot.bodyControlState = integer;
+            snapshot.bodyControlState = integer;
         if (extractInteger(line, "process_state", integer))
-            m_Snapshot.processState = integer;
+            snapshot.processState = integer;
         if (extractNumber(line, "battery_voltage", value))
-            m_Snapshot.batteryVoltage = value;
+            snapshot.batteryVoltage = value;
         if (extractNumber(line, "battery_current", value))
-            m_Snapshot.batteryCurrent = value;
+            snapshot.batteryCurrent = value;
         if (extractNumber(line, "battery_power", value))
-            m_Snapshot.batteryPower = value;
+            snapshot.batteryPower = value;
         if (extractNumber(line, "imu_roll", value))
-            m_Snapshot.imuRoll = value;
+            snapshot.imuRoll = value;
         if (extractNumber(line, "imu_pitch", value))
-            m_Snapshot.imuPitch = value;
+            snapshot.imuPitch = value;
         if (extractNumber(line, "imu_yaw", value))
-            m_Snapshot.imuYaw = value;
+            snapshot.imuYaw = value;
 
         std::string encodedCamera;
         if (extractString(line, "camera_jpeg", encodedCamera) &&
@@ -312,13 +365,42 @@ namespace Mara
             }
             if (rgb)
             {
-                m_Snapshot.cameraRgb.assign(
+                snapshot.cameraRgb.assign(
                     rgb,
                     rgb + static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 3u);
-                m_Snapshot.cameraWidth = width;
-                m_Snapshot.cameraHeight = height;
-                ++m_Snapshot.cameraSequence;
+                snapshot.cameraWidth = width;
+                snapshot.cameraHeight = height;
+                ++snapshot.cameraSequence;
                 stbi_image_free(rgb);
+            }
+        }
+
+        std::string encodedDepth;
+        int depthWidth = 0;
+        int depthHeight = 0;
+        if (extractString(line, "depth_raw16", encodedDepth) &&
+            extractInteger(line, "depth_width", depthWidth) &&
+            extractInteger(line, "depth_height", depthHeight) &&
+            depthWidth > 0 &&
+            depthHeight > 0 &&
+            encodedDepth.size() <= 3u * 1024u * 1024u)
+        {
+            const std::vector<std::uint8_t> bytes = decodeBase64(encodedDepth);
+            const std::size_t expectedBytes =
+                static_cast<std::size_t>(depthWidth) *
+                static_cast<std::size_t>(depthHeight) * 2u;
+            if (bytes.size() == expectedBytes)
+            {
+                snapshot.depth.resize(expectedBytes / 2u);
+                for (std::size_t index = 0; index < snapshot.depth.size(); ++index)
+                {
+                    snapshot.depth[index] = static_cast<std::uint16_t>(
+                        static_cast<std::uint16_t>(bytes[index * 2u]) |
+                        (static_cast<std::uint16_t>(bytes[index * 2u + 1u]) << 8u));
+                }
+                snapshot.depthWidth = depthWidth;
+                snapshot.depthHeight = depthHeight;
+                ++snapshot.depthSequence;
             }
         }
 
@@ -342,11 +424,11 @@ namespace Mara
             motor.error = static_cast<std::uint32_t>(std::stoul((*it)[6].str()));
 
             const auto existing = std::find_if(
-                m_Snapshot.motors.begin(),
-                m_Snapshot.motors.end(),
+                snapshot.motors.begin(),
+                snapshot.motors.end(),
                 [&motor](const MotorTelemetry &item) { return item.id == motor.id; });
-            if (existing == m_Snapshot.motors.end())
-                m_Snapshot.motors.push_back(motor);
+            if (existing == snapshot.motors.end())
+                snapshot.motors.push_back(motor);
             else
                 *existing = motor;
         }
@@ -355,9 +437,12 @@ namespace Mara
             line.find("\"type\": \"telemetry\"") == std::string::npos)
             return false;
 
-        m_HasData = true;
-        m_LastDataTimeMs = nowMs();
-        ++m_Snapshot.sequence;
+        ++snapshot.sequence;
+        {
+            std::lock_guard<std::mutex> lock(m_StateMutex);
+            m_PendingSnapshot = snapshot;
+            m_PendingData = true;
+        }
         return true;
     }
 }
