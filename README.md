@@ -1,80 +1,102 @@
 # NGine
 
-NGine is a C++20 OpenGL robot visualization and editor application. The project uses GLFW, GLAD, Dear ImGui, GLM, Assimp, TinyXML-2, and stb. These dependencies are included in the repository under `vendors/`.
+NGine is a C++20 OpenGL robot visualization and editor application. It renders a robot model in an interactive editor and can display live, read-only telemetry from the robot's ROS 2 computer.
 
-![NGine editor viewport](Docs/viewport.png)
+![NGine editor viewport](Docs/AppEditorUpdated.png)
 
-## Here is an image of the robot this program is meant for
+## Table of Contents
+
+- [Overview](#overview)
+- [Requirements](#requirements)
+- [Installation (Windows)](#installation-windows)
+- [Build](#build)
+- [Run](#run)
+- [ROS 2 Telemetry Bridge](#ros-2-telemetry-bridge)
+- [Troubleshooting](#troubleshooting)
+
+## Overview
+
+**Target robot**
+
 ![MKU Robot](Docs/robot.jpeg)
+
+**Screen recordings**
+
+Short recordings showing the app running (a proof of life). They do not cover every feature.
+
+- [App screen recording](Docs/ScreenRecordingOfAppUpdated.mp4)
+- [Camera preview recording](Docs/CameraRecordingOfApp.mp4)
+
+**Features**
+
+- Camera orbit, pan, and zoom
+- Joint controls and demo animation controls
+- Live read-only motor, power, IMU, and controller-state telemetry
+- RGB and depth camera previews
+
+**Dependencies** (all vendored under `vendors/`): GLFW, GLAD, Dear ImGui, GLM, Assimp, TinyXML-2, stb.
 
 ## Requirements
 
-The Windows build is tested with MSYS2 UCRT64 and requires:
-
 - Git
-- CMake 3.20 or newer
+- CMake 3.20+
 - GCC with C++20 support
 - GNU Make or Ninja
+- A graphics driver supporting OpenGL 4.6
 
-The application also requires an OpenGL 4.6 capable graphics driver.
+The Windows build is tested with MSYS2 UCRT64.
 
-## Install Build Tools on Windows
+## Installation (Windows)
 
-Install [MSYS2](https://www.msys2.org/), then open the **MSYS2 UCRT64** terminal and update the package database:
+1. Install [MSYS2](https://www.msys2.org/) and open the **MSYS2 UCRT64** terminal.
+2. Update the package database. Restart the terminal if prompted, then run the second command:
 
-```bash
-pacman -Syu
-```
+   ```bash
+   pacman -Syu
+   pacman -Su
+   ```
 
-Close and reopen the MSYS2 UCRT64 terminal if MSYS2 asks you to do so, then update again:
+3. Install the toolchain:
 
-```bash
-pacman -Su
-```
+   ```bash
+   pacman -S --needed \
+       git \
+       mingw-w64-ucrt-x86_64-toolchain \
+       mingw-w64-ucrt-x86_64-cmake \
+       mingw-w64-ucrt-x86_64-ninja
+   ```
 
-Install Git, CMake, and the UCRT64 GCC toolchain:
+4. Verify:
 
-```bash
-pacman -S --needed \
-	git \
-	mingw-w64-ucrt-x86_64-toolchain \
-	mingw-w64-ucrt-x86_64-cmake \
-	mingw-w64-ucrt-x86_64-ninja
-```
+   ```bash
+   g++ --version
+   cmake --version
+   git --version
+   ```
 
-Verify the tools:
+5. Clone the repository with submodules:
 
-```bash
-g++ --version
-cmake --version
-git --version
-```
+   ```bash
+   git clone --recurse-submodules https://github.com/lewis-2000/ngine
+   cd ngine
+   ```
 
-## Download the Repository
+   If you already cloned without submodules:
 
-Clone the repository recursively so Git also downloads any submodules:
+   ```bash
+   git submodule update --init --recursive
+   ```
 
-```bash
-git clone --recurse-submodules https://github.com/lewis-2000/ngine
-cd ngine
-```
+## Build
 
-If the repository was already cloned without recursive submodules, initialize them with:
-
-```bash
-git submodule update --init --recursive
-```
-
-## Configure and Build
-
-Run these commands from the repository root, where `CMakeLists.txt`, `resources/`, and `shaders/` are located:
+Run from the repository root (where `CMakeLists.txt`, `resources/`, and `shaders/` live):
 
 ```bash
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
-The executable and copied runtime assets are placed in:
+Output:
 
 ```text
 build/ngine.exe
@@ -82,147 +104,114 @@ build/shaders/
 build/resources/
 ```
 
-To rebuild after making code changes:
-
-```bash
-cmake --build build
-```
-
-To regenerate the build directory after adding or removing source files:
-
-```bash
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-```
+| Task | Command |
+| --- | --- |
+| Rebuild after code changes | `cmake --build build` |
+| Regenerate after adding/removing source files | `cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release` |
 
 ## Run
 
-Run the executable from the repository root so the relative shader, font, and robot model paths resolve correctly:
+Run from the repository root so relative shader, font, and model paths resolve:
 
 ```bash
 ./build/ngine.exe
 ```
 
-The editor opens with the robot scene. The viewport supports camera orbit, panning, zooming, joint controls, and the current demo animation controls.
+## ROS 2 Telemetry Bridge
 
-## Read-only ROS 2 telemetry bridge
+NGine can display live telemetry from the robot's ROS 2 computer. The relay is **read-only**: it subscribes to ROS 2 feedback topics and never publishes motor commands or calls motor services.
 
-NGine can display live, read-only motor, power, IMU, and controller-state
-telemetry from the robot's ROS 2 computer. The relay subscribes to ROS 2
-feedback topics only; it does not publish motor commands or call motor
-services.
+### Placeholders used below
 
-The current setup expects the Ubuntu host at `192.168.41.1` and TCP port
-`8765`.
+| Placeholder | Meaning |
+| --- | --- |
+| `<ROBOT_USER>` | Username on the robot's Ubuntu computer |
+| `<ROBOT_IP>` | IP address of the robot's Ubuntu computer |
+| `<PORT>` | Relay TCP port (example: `8765`) |
+| `<NGINE_REPO>` | Path to your local NGine checkout |
+| `<VENDOR_WS>` | Path to the robot vendor's ROS 2 workspace |
 
-### 1. Copy the relay to Ubuntu
+### 1. Copy the relay to the robot
 
-Run this from a Windows PowerShell terminal in the NGine repository:
-
-```powershell
-scp C:\Users\flamm\Dev\Graphics\ngine\scripts\ros2_telemetry_relay.py ubuntu@192.168.41.1:/home/ubuntu/
-```
-
-Enter the Ubuntu user's password when prompted.
-
-### 2. Start the relay on Ubuntu
-
-Connect to the host:
+From PowerShell in the NGine repository:
 
 ```powershell
-ssh ubuntu@192.168.41.1
+scp <NGINE_REPO>\scripts\ros2_telemetry_relay.py <ROBOT_USER>@<ROBOT_IP>:~/
 ```
 
-Then run these commands in the Ubuntu shell:
+### 2. Start the relay on the robot
+
+```powershell
+ssh <ROBOT_USER>@<ROBOT_IP>
+```
+
+Then, in the Ubuntu shell:
 
 ```bash
 source /opt/ros/humble/setup.bash
-source /home/ubuntu/ros2_tg/src/x86/benti/TG2.0-Plus_linux-x86_ros2-general_v2.0.7_20260527_155108/install/setup.bash
-python3 /home/ubuntu/ros2_telemetry_relay.py --bind 0.0.0.0 --port 8765 --rate 20 --camera-rate 1 --depth-scale 4
+source <VENDOR_WS>/install/setup.bash
+python3 ~/ros2_telemetry_relay.py --bind 0.0.0.0 --port <PORT> --rate 20 --camera-rate 1 --depth-scale 4
 ```
 
-The RGB and depth streams can be selected independently. Use one of these
-options when starting the relay:
+> `--bind 0.0.0.0` listens on all interfaces. Use this only on a trusted network, or bind to a specific interface address instead.
 
-```bash
-# RGB camera only
-python3 /home/ubuntu/ros2_telemetry_relay.py --bind 0.0.0.0 --port 8765 --rate 20 --camera-rate 1 --disable-depth
+**Stream selection.** By default both RGB and depth are forwarded. Disabled streams are not subscribed to, decoded, or transmitted.
 
-# Depth only
-python3 /home/ubuntu/ros2_telemetry_relay.py --bind 0.0.0.0 --port 8765 --rate 20 --camera-rate 1 --depth-scale 4 --disable-camera
+| Mode | Extra flags |
+| --- | --- |
+| RGB only | `--disable-depth` |
+| Depth only | `--disable-camera` |
+| Motor/state telemetry only | `--disable-camera --disable-depth` |
 
-# Motor/state telemetry only
-python3 /home/ubuntu/ros2_telemetry_relay.py --bind 0.0.0.0 --port 8765 --rate 20 --disable-camera --disable-depth
-```
+Keep this terminal open. If NGine disconnects or restarts, the relay keeps its ROS subscriptions and waits for the next connection on the same port.
 
-The default is to forward both RGB and depth. Disabled streams are not
-subscribed to, decoded, or transmitted, which avoids their performance cost.
+### 3. Build and run NGine
 
-Keep this SSH terminal running. The relay reports when NGine connects. If
-NGine disconnects or is restarted, the relay keeps its ROS subscriptions alive
-and waits for the next connection on the same port.
-
-### 3. Start NGine and connect
-
-In a second Windows PowerShell terminal, rebuild and run NGine:
+In a second PowerShell terminal:
 
 ```powershell
-cd C:\Users\flamm\Dev\Graphics\ngine
-cmake --build C:\Users\flamm\Dev\Graphics\ngine\build --config Release --parallel 1
-cd C:\Users\flamm\Dev\Graphics\ngine\build
+cd <NGINE_REPO>
+cmake --build build --config Release --parallel 1
+cd build
 .\ngine.exe
 ```
 
-In the editor:
+### 4. Connect in the editor
 
-1. Open **View > Robot telemetry**.
-2. Click **Connect**.
-3. Confirm that the panel shows **LIVE DATA** and increasing frame counts.
-4. Open **View > Camera preview** to see the read-only RGB stream.
-5. Enable **Apply healthy motor feedback to model** if model feedback is also
-   wanted.
+1. Open **View > Robot telemetry** and click **Connect**.
+2. Confirm the panel shows **LIVE DATA** and increasing frame counts.
+3. Open **View > Camera preview** to see the RGB stream.
+4. Optionally enable **Apply healthy motor feedback to model**.
 
-The last option applies healthy, read-only motor positions to the simulated
-robot for visual comparison. It does not send anything back to ROS 2. Position
-values are currently shown and applied as vendor-reported values; no
-degree/radian conversion is performed.
+The last option applies healthy, read-only motor positions to the simulated robot for visual comparison. Nothing is sent back to ROS 2. Position values are shown and applied as vendor-reported values; no degree/radian conversion is performed.
 
-The camera preview subscribes to `/camera/color/image_raw/compressed` and the
-depth preview subscribes to `/camera/depth/image_raw` through the relay. RGB
-frames are JPEG-encoded. Depth frames are downsampled by four in each
-dimension and forwarded as read-only `16UC1` data. Both are rate-limited to
-one frame per second by default. Use the
-**RGB** and **Depth** tabs in the camera preview. The previews preserve their
-camera aspect ratios and the RGB view falls back to the local camera preview
-if no ROS camera frame is available.
+### Camera streams
 
-The detailed preview reports the received frame dimensions but does not request
-higher resolution. The relay keeps only the newest frame, so opening the
-detailed view does not increase network traffic or decode workload.
+| Stream | ROS topic | Format |
+| --- | --- | --- |
+| RGB | `/camera/color/image_raw/compressed` | JPEG |
+| Depth | `/camera/depth/image_raw` | `16UC1`, downsampled 4x per dimension |
 
-If the connection fails, test the network port from Windows:
+- Both are rate-limited to 1 frame per second by default.
+- Use the **RGB** and **Depth** tabs in the camera preview; aspect ratios are preserved.
+- RGB falls back to the local camera preview if no ROS frame is available.
+- The detailed preview reports received frame dimensions but does not request higher resolution. The relay keeps only the newest frame, so opening it adds no network or decode load.
+
+Protocol and safety details: [Docs/ros2-bridge-read-only-reference.md](Docs/ros2-bridge-read-only-reference.md).
+
+## Troubleshooting
+
+**Cannot connect to the relay.** Test the port from Windows:
 
 ```powershell
-Test-NetConnection 192.168.41.1 -Port 8765
+Test-NetConnection <ROBOT_IP> -Port <PORT>
 ```
 
-The result should contain:
+The result should contain `TcpTestSucceeded : True`.
 
-```text
-TcpTestSucceeded : True
-```
+**Stale CMake generator or configuration errors.** Remove the build directory and reconfigure.
 
-More protocol and safety details are documented in
-[Docs/ros2-bridge-read-only-reference.md](Docs/ros2-bridge-read-only-reference.md).
-
-### Bridge walkthrough
-
-<video controls src="Docs/ScreenRecordingOfAppUpdated.mp4" width="800"></video>
-
-<video controls src="Docs/CameraRecordingOfApp.mp4" width="800"></video>
-
-## Build Directory Cleanup
-
-If CMake reports stale generator or configuration errors, remove the build directory and configure it again:
+Bash:
 
 ```bash
 rm -rf build
@@ -230,7 +219,7 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
-On PowerShell, use this equivalent cleanup command:
+PowerShell:
 
 ```powershell
 Remove-Item -Recurse -Force build
