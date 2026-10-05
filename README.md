@@ -216,7 +216,7 @@ More protocol and safety details are documented in
 
 ### Bridge walkthrough
 
-<video controls src="Docs/ScreenRecordingOfApp.mp4" width="800"></video>
+<video controls src="Docs/ScreenRecordingOfAppUpdated.mp4" width="800"></video>
 
 <video controls src="Docs/CameraRecordingOfApp.mp4" width="800"></video>
 
