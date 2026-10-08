@@ -1,0 +1,11 @@
+{
+  "name": "demo_wave",
+  "duration": 10.0,
+  "priority": 0,
+  "loop": true,
+  "layer": "base",
+  "return_to_idle": false,
+  "requires_ground_contact": false,
+  "allows_harness": true,
+  "motion_scale": 1.0
+}

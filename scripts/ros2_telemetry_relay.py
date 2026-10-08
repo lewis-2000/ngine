@@ -21,6 +21,8 @@ from rclpy.qos import qos_profile_sensor_data
 
 
 class TelemetryRelay(Node):
+    _MAX_CAMERA_BYTES = 4 * 1024 * 1024
+
     def __init__(
         self,
         server: socket.socket,
@@ -45,6 +47,7 @@ class TelemetryRelay(Node):
         self._depth_height = 0
         self._last_camera_send = 0.0
         self._last_depth_process = 0.0
+        self._last_depth_encoding = ""
         self._motors: dict[int, dict[str, Any]] = {}
         self._data: dict[str, Any] = {
             "bodycontrol_state": -1,
@@ -155,11 +158,23 @@ class TelemetryRelay(Node):
 
     def _camera_callback(self, message: CompressedImage) -> None:
         with self._lock:
-            if len(message.data) <= 2 * 1024 * 1024:
-                self._camera_jpeg = base64.b64encode(bytes(message.data)).decode("ascii")
+            if not message.data:
+                self.get_logger().warning("Received an empty RGB camera frame")
+                return
+            if len(message.data) > self._MAX_CAMERA_BYTES:
+                self.get_logger().warning(
+                    "Dropping RGB camera frame larger than "
+                    f"{self._MAX_CAMERA_BYTES // (1024 * 1024)} MiB "
+                    f"({len(message.data)} bytes)")
+                return
+            self._camera_jpeg = base64.b64encode(bytes(message.data)).decode("ascii")
 
     def _depth_callback(self, message: Image) -> None:
-        if message.encoding != "16UC1" or message.is_bigendian:
+        if message.encoding not in ("16UC1", "mono16"):
+            if message.encoding != self._last_depth_encoding:
+                self.get_logger().warning(
+                    f"Unsupported depth encoding: {message.encoding}")
+                self._last_depth_encoding = message.encoding
             return
         now = time.monotonic()
         if now - self._last_depth_process < 1.0 / self._camera_rate:
@@ -187,7 +202,12 @@ class TelemetryRelay(Node):
             for target_x in range(target_width):
                 source_offset = source_row + (target_x * scale) * 2
                 target_offset = target_row + target_x * 2
-                downsampled[target_offset:target_offset + 2] = raw[source_offset:source_offset + 2]
+                if message.is_bigendian:
+                    downsampled[target_offset] = raw[source_offset + 1]
+                    downsampled[target_offset + 1] = raw[source_offset]
+                else:
+                    downsampled[target_offset:target_offset + 2] = raw[
+                        source_offset:source_offset + 2]
 
         with self._lock:
             self._depth_data = base64.b64encode(downsampled).decode("ascii")

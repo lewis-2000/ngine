@@ -1,0 +1,11 @@
+{
+  "name": "greeting",
+  "duration": 2.0,
+  "priority": 10,
+  "loop": false,
+  "layer": "upper_body",
+  "return_to_idle": true,
+  "requires_ground_contact": false,
+  "allows_harness": true,
+  "motion_scale": 1.0
+}

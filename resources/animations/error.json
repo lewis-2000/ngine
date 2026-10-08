@@ -1,0 +1,11 @@
+{
+  "name": "error",
+  "duration": 1.0,
+  "priority": 100,
+  "loop": true,
+  "layer": "emergency",
+  "return_to_idle": false,
+  "requires_ground_contact": false,
+  "allows_harness": true,
+  "motion_scale": 0.0
+}

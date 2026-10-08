@@ -1,0 +1,11 @@
+{
+  "name": "idle",
+  "duration": 10.0,
+  "priority": 1,
+  "loop": true,
+  "layer": "base",
+  "return_to_idle": false,
+  "requires_ground_contact": false,
+  "allows_harness": true,
+  "motion_scale": 0.15
+}

@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "Framebuffer.h"
+#include "Animation.h"
 #include "CameraCapture.h"
 #include "PoseFrame.h"
 #include "PoseEstimator.h"
@@ -33,6 +34,12 @@ namespace Mara
         void endSceneRender();
         bool isViewportHovered() const { return m_ViewportHovered; }
         bool consumeCameraResetRequest();
+        void dispatchAnimationEvent(const AnimationEvent &event);
+        bool dispatchAnimationIntent(
+            const std::string &intent,
+            int priority = 0,
+            bool interruptCurrent = false);
+        bool dispatchAnimationIntentJson(const std::string &json);
         const std::string &selectedLink() const { return m_SelectedLink; }
         bool showGrid() const { return m_ShowGrid; }
         bool showSensors() const { return m_ShowSensors; }
@@ -40,6 +47,16 @@ namespace Mara
         bool motionStreamingActive() const { return m_SimulationRunning; }
         float animationTime() const { return m_AnimationTime; }
         float animationDuration() const { return m_AnimationDuration; }
+        const std::string &currentAnimation() const
+        {
+            return m_AnimationMixer.currentAnimation();
+        }
+        bool animationSafetyAllowsMotion() const
+        {
+            return !m_AnimationSafety.emergencyStop &&
+                   m_AnimationSafety.motorsEnabled;
+        }
+        const std::string &animationStatus() const { return m_AnimationStatus; }
         int sceneWidth() const { return m_SceneFramebuffer.getWidth(); }
         int sceneHeight() const { return m_SceneFramebuffer.getHeight(); }
         void setGizmoMatrices(
@@ -62,6 +79,7 @@ namespace Mara
         void drawTelemetry();
         void applyTelemetryToRobot();
         void updateRemoteCameraTexture();
+        void refreshDemoAnimation();
         void setSimulationTime(float time);
         void resetSimulation();
 
@@ -72,6 +90,7 @@ namespace Mara
         bool m_ShowSensors = false;
         bool m_ShowConsole = false;
         bool m_ShowPosePanel = false;
+        bool m_ShowAnimationPanel = true;
         bool m_ShowSensorOverlays = true;
         bool m_ShowTelemetry = true;
         bool m_ApplyTelemetryToRobot = false;
@@ -94,7 +113,17 @@ namespace Mara
         float m_AnimationTime = 0.0f;
         float m_AnimationDuration = 10.0f;
         bool m_LoopAnimation = true;
+        AnimationSafetyState m_AnimationSafety;
         PoseFrame m_PoseFrame;
+        AnimationLibrary m_AnimationLibrary;
+        AnimationEventMapper m_AnimationEventMapper;
+        AnimationEventQueue m_AnimationEventQueue;
+        AnimationSelector m_AnimationSelector;
+        AnimationMixer m_AnimationMixer;
+        std::string m_AnimationConfiguration;
+        std::string m_AnimationStatus;
+        std::uint64_t m_LastTelemetrySequence = 0;
+        bool m_TelemetryErrorLatched = false;
 
         float m_Position[3] = {0.0f, 0.0f, 0.0f};
         float m_Rotation[3] = {0.0f, 0.0f, 0.0f};

@@ -3,6 +3,7 @@ project("ngine")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+option(NGINE_BUILD_TESTS "Build NGine animation tests" OFF)
 find_package(OpenGL REQUIRED)
 
 option(NGINE_ENABLE_OPENCV "Enable cross-platform webcam capture through OpenCV" OFF)
@@ -67,7 +68,7 @@ target_link_libraries(imguizmo PUBLIC imgui)
 # Linking libraries
 target_link_libraries(imgui PUBLIC glfw glad)
 
-file(GLOB_RECURSE ENGINE_SOURCES src/*.cpp)
+file(GLOB_RECURSE ENGINE_SOURCES CONFIGURE_DEPENDS src/*.cpp)
 
 add_executable(${PROJECT_NAME} src/App.cpp main.cpp ${ENGINE_SOURCES} )
 
@@ -107,3 +108,19 @@ add_custom_target(copy_runtime_assets ALL
 )
 
 add_dependencies(${PROJECT_NAME} copy_runtime_assets)
+
+if(NGINE_BUILD_TESTS)
+    enable_testing()
+    add_executable(animation_tests
+        tests/AnimationTests.cpp
+        src/Animation.cpp)
+    target_include_directories(
+        animation_tests
+        PRIVATE
+        tests/stubs
+        includes
+        vendors/glm
+        vendors/glad/include)
+    target_link_libraries(animation_tests PRIVATE assimp)
+    add_test(NAME animation_tests COMMAND animation_tests)
+endif()

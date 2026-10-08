@@ -101,6 +101,9 @@ namespace Mara
             m_Implementation->rgba.data +
                 (m_Width * m_Height * 4));
         glBindTexture(GL_TEXTURE_2D, m_Texture);
+        GLint unpackAlignment = 4;
+        glGetIntegerv(GL_UNPACK_ALIGNMENT, &unpackAlignment);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         glTexImage2D(
             GL_TEXTURE_2D,
             0,
@@ -111,6 +114,7 @@ namespace Mara
             GL_RGBA,
             GL_UNSIGNED_BYTE,
             m_Implementation->rgba.data);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, unpackAlignment);
         glBindTexture(GL_TEXTURE_2D, 0);
         return true;
 #else
