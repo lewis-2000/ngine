@@ -13,6 +13,7 @@
 #include <glm/mat4x4.hpp>
 
 struct GLFWwindow;
+struct ImFont;
 
 namespace Mara
 {
@@ -84,6 +85,10 @@ namespace Mara
         void resetSimulation();
 
     private:
+        ImFont *m_FontBody = nullptr;
+        ImFont *m_FontHeading = nullptr;
+        ImFont *m_FontMono = nullptr;
+
         bool m_Initialized = false;
         bool m_SimulationRunning = false;
         bool m_ShowGrid = true;

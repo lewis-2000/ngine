@@ -153,6 +153,14 @@ source <VENDOR_WS>/install/setup.bash
 python3 ~/ros2_telemetry_relay.py --bind 0.0.0.0 --port <PORT> --rate 20 --camera-rate 1 --depth-scale 4
 ```
 
+#### Example
+
+```bash
+source /opt/ros/humble/setup.bash
+source /install/setup.bash
+python3 ~/ros2_telemetry_relay.py --bind 0.0.0.0 --port 8765 --rate 20 --camera-rate 40 --depth-scale 4
+```
+
 > `--bind 0.0.0.0` listens on all interfaces. Use this only on a trusted network, or bind to a specific interface address instead.
 
 **Stream selection.** By default both RGB and depth are forwarded. Disabled streams are not subscribed to, decoded, or transmitted.

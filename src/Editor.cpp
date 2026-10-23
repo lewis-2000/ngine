@@ -22,22 +22,22 @@ namespace Mara
 {
     namespace
     {
-        constexpr ImU32 kViewportCardBackground = IM_COL32(26, 31, 39, 242);
-        constexpr ImU32 kViewportCardBorder = IM_COL32(105, 122, 143, 220);
-        constexpr ImU32 kViewportImageBackground = IM_COL32(13, 17, 22, 255);
-        constexpr ImU32 kViewportText = IM_COL32(232, 238, 246, 255);
-        constexpr ImU32 kViewportMutedText = IM_COL32(165, 176, 190, 255);
+        constexpr ImU32 kViewportCardBackground = IM_COL32(245, 247, 250, 246);
+        constexpr ImU32 kViewportCardBorder = IM_COL32(145, 158, 180, 230);
+        constexpr ImU32 kViewportImageBackground = IM_COL32(224, 228, 235, 255);
+        constexpr ImU32 kViewportText = IM_COL32(30, 38, 52, 255);
+        constexpr ImU32 kViewportMutedText = IM_COL32(92, 103, 122, 255);
         constexpr ImU32 kTextureTint = IM_COL32(255, 255, 255, 255);
-        const ImVec4 kViewportPanelBackground(0.10f, 0.12f, 0.15f, 1.0f);
-        const ImVec4 kViewportAccent(0.35f, 0.78f, 0.95f, 1.0f);
-        const ImVec4 kHealthyStatus(0.25f, 0.70f, 0.38f, 1.0f);
+        const ImVec4 kViewportPanelBackground(0.94f, 0.95f, 0.97f, 1.0f);
+        const ImVec4 kViewportAccent(0.16f, 0.38f, 0.68f, 1.0f);
+        const ImVec4 kHealthyStatus(0.38f, 0.72f, 0.45f, 1.0f);
 
         void drawPanelHeader(
             const char *icon,
             const char *title,
             const char *status = nullptr)
         {
-            ImGui::TextColored(ImVec4(0.10f, 0.30f, 0.48f, 1.0f), "%s", icon);
+            ImGui::TextColored(ImVec4(0.16f, 0.38f, 0.68f, 1.0f), "%s", icon);
             ImGui::SameLine();
             ImGui::TextUnformatted(title);
             if (status)
@@ -48,6 +48,7 @@ namespace Mara
                 ImGui::TextDisabled("%s", status);
             }
             ImGui::Separator();
+            ImGui::Spacing();
         }
 
         void drawStatusBadge(
@@ -80,7 +81,7 @@ namespace Mara
         io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
         io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
-        ImGui::StyleColorsDark();
+        ImGui::StyleColorsLight();
 
         ImGuiStyle &style = ImGui::GetStyle();
 
@@ -88,13 +89,15 @@ namespace Mara
         // Geometry
         // ------------------------------------------------------------
 
-        style.WindowRounding = 5.0f;
-        style.ChildRounding = 3.0f;
-        style.FrameRounding = 3.0f;
-        style.PopupRounding = 4.0f;
-        style.ScrollbarRounding = 4.0f;
-        style.GrabRounding = 3.0f;
-        style.TabRounding = 3.0f;
+        style.WindowRounding = 2.0f;
+        style.WindowMenuButtonPosition = ImGuiDir_None; // Hide the default title-bar window/menu drag icon.
+        style.DockingSeparatorSize = 5.0f;
+        style.ChildRounding = 2.0f;
+        style.FrameRounding = 2.0f;
+        style.PopupRounding = 2.0f;
+        style.ScrollbarRounding = 2.0f;
+        style.GrabRounding = 2.0f;
+        style.TabRounding = 2.0f;
 
         style.WindowBorderSize = 1.0f;
         style.ChildBorderSize = 1.0f;
@@ -102,13 +105,16 @@ namespace Mara
         style.FrameBorderSize = 1.0f;
         style.TabBorderSize = 0.0f;
 
-        style.WindowPadding = ImVec2(10.0f, 8.0f);
-        style.FramePadding = ImVec2(7.0f, 4.0f);
-        style.ItemSpacing = ImVec2(7.0f, 5.0f);
+        style.WindowPadding = ImVec2(12.0f, 10.0f);
+        style.FramePadding = ImVec2(9.0f, 6.0f);
+        style.ItemSpacing = ImVec2(8.0f, 6.0f);
         style.ItemInnerSpacing = ImVec2(6.0f, 4.0f);
+        style.CellPadding = ImVec2(7.0f, 5.0f);
+        style.IndentSpacing = 18.0f;
+        style.TabBarBorderSize = 1.0f;
 
-        style.ScrollbarSize = 12.0f;
-        style.GrabMinSize = 10.0f;
+        style.ScrollbarSize = 13.0f;
+        style.GrabMinSize = 11.0f;
 
         // ------------------------------------------------------------
         // Colors
@@ -118,119 +124,167 @@ namespace Mara
 
         // Background hierarchy
         colors[ImGuiCol_WindowBg] =
-            ImVec4(0.045f, 0.050f, 0.060f, 1.00f);
+            ImVec4(0.93f, 0.94f, 0.96f, 1.00f);
 
         colors[ImGuiCol_ChildBg] =
-            ImVec4(0.060f, 0.067f, 0.080f, 1.00f);
+            ImVec4(0.97f, 0.97f, 0.98f, 1.00f);
 
         colors[ImGuiCol_PopupBg] =
-            ImVec4(0.065f, 0.072f, 0.085f, 0.98f);
+            ImVec4(0.99f, 0.99f, 1.00f, 0.99f);
 
         colors[ImGuiCol_MenuBarBg] =
-            ImVec4(0.035f, 0.040f, 0.050f, 1.00f);
+            ImVec4(0.86f, 0.88f, 0.92f, 1.00f);
 
         // Window title bars
         colors[ImGuiCol_TitleBg] =
-            ImVec4(0.035f, 0.040f, 0.050f, 1.00f);
+            ImVec4(0.86f, 0.88f, 0.92f, 1.00f);
 
         colors[ImGuiCol_TitleBgActive] =
-            ImVec4(0.070f, 0.100f, 0.140f, 1.00f);
+            ImVec4(0.76f, 0.84f, 0.94f, 1.00f);
 
         colors[ImGuiCol_TitleBgCollapsed] =
-            ImVec4(0.035f, 0.040f, 0.050f, 1.00f);
+            ImVec4(0.86f, 0.88f, 0.92f, 1.00f);
 
         // Borders / separators
         colors[ImGuiCol_Border] =
-            ImVec4(0.16f, 0.19f, 0.24f, 0.85f);
+            ImVec4(0.60f, 0.64f, 0.70f, 0.92f);
 
         colors[ImGuiCol_BorderShadow] =
             ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
 
         colors[ImGuiCol_Separator] =
-            ImVec4(0.14f, 0.17f, 0.21f, 0.75f);
+            ImVec4(0.68f, 0.70f, 0.75f, 0.75f);
 
         colors[ImGuiCol_SeparatorHovered] =
-            ImVec4(0.20f, 0.42f, 0.60f, 0.75f);
+            ImVec4(0.32f, 0.50f, 0.78f, 0.75f);
 
         colors[ImGuiCol_SeparatorActive] =
-            ImVec4(0.25f, 0.55f, 0.78f, 1.00f);
+            ImVec4(0.20f, 0.42f, 0.75f, 1.00f);
 
         // Text
         colors[ImGuiCol_Text] =
-            ImVec4(0.88f, 0.90f, 0.94f, 1.00f);
+            ImVec4(0.12f, 0.14f, 0.18f, 1.00f);
 
         colors[ImGuiCol_TextDisabled] =
-            ImVec4(0.45f, 0.49f, 0.56f, 1.00f);
+            ImVec4(0.38f, 0.42f, 0.50f, 1.00f);
 
         // Controls
         colors[ImGuiCol_FrameBg] =
-            ImVec4(0.075f, 0.085f, 0.105f, 1.00f);
+            ImVec4(0.86f, 0.88f, 0.92f, 1.00f);
 
         colors[ImGuiCol_FrameBgHovered] =
-            ImVec4(0.105f, 0.135f, 0.175f, 1.00f);
+            ImVec4(0.78f, 0.84f, 0.93f, 1.00f);
 
         colors[ImGuiCol_FrameBgActive] =
-            ImVec4(0.12f, 0.20f, 0.28f, 1.00f);
+            ImVec4(0.64f, 0.75f, 0.90f, 1.00f);
 
         // Buttons
         colors[ImGuiCol_Button] =
-            ImVec4(0.075f, 0.105f, 0.140f, 1.00f);
+            ImVec4(0.82f, 0.85f, 0.90f, 1.00f);
 
         colors[ImGuiCol_ButtonHovered] =
-            ImVec4(0.11f, 0.18f, 0.25f, 1.00f);
+            ImVec4(0.68f, 0.78f, 0.91f, 1.00f);
 
         colors[ImGuiCol_ButtonActive] =
-            ImVec4(0.14f, 0.25f, 0.34f, 1.00f);
+            ImVec4(0.45f, 0.62f, 0.84f, 1.00f);
 
         // Headers / tree nodes
         colors[ImGuiCol_Header] =
-            ImVec4(0.075f, 0.12f, 0.17f, 1.00f);
+            ImVec4(0.78f, 0.83f, 0.91f, 1.00f);
 
         colors[ImGuiCol_HeaderHovered] =
-            ImVec4(0.11f, 0.20f, 0.28f, 1.00f);
+            ImVec4(0.65f, 0.76f, 0.90f, 1.00f);
 
         colors[ImGuiCol_HeaderActive] =
-            ImVec4(0.14f, 0.27f, 0.38f, 1.00f);
+            ImVec4(0.48f, 0.65f, 0.86f, 1.00f);
 
         // Selection / accent
         colors[ImGuiCol_CheckMark] =
-            ImVec4(0.30f, 0.68f, 0.92f, 1.00f);
+            ImVec4(0.16f, 0.38f, 0.68f, 1.00f);
 
         colors[ImGuiCol_SliderGrab] =
-            ImVec4(0.25f, 0.58f, 0.82f, 1.00f);
+            ImVec4(0.25f, 0.48f, 0.78f, 1.00f);
 
         colors[ImGuiCol_SliderGrabActive] =
-            ImVec4(0.35f, 0.72f, 0.96f, 1.00f);
+            ImVec4(0.16f, 0.36f, 0.65f, 1.00f);
 
         // Tabs
         colors[ImGuiCol_Tab] =
-            ImVec4(0.055f, 0.075f, 0.100f, 1.00f);
+            ImVec4(0.82f, 0.85f, 0.90f, 1.00f);
 
         colors[ImGuiCol_TabHovered] =
-            ImVec4(0.11f, 0.20f, 0.28f, 1.00f);
+            ImVec4(0.68f, 0.78f, 0.91f, 1.00f);
 
         colors[ImGuiCol_TabSelected] =
-            ImVec4(0.09f, 0.17f, 0.24f, 1.00f);
+            ImVec4(0.70f, 0.80f, 0.93f, 1.00f);
 
         colors[ImGuiCol_TabSelectedOverline] =
-            ImVec4(0.25f, 0.62f, 0.88f, 1.00f);
+            ImVec4(0.16f, 0.38f, 0.68f, 1.00f);
 
         colors[ImGuiCol_TabDimmed] =
-            ImVec4(0.045f, 0.060f, 0.080f, 1.00f);
+            ImVec4(0.88f, 0.89f, 0.93f, 1.00f);
 
         colors[ImGuiCol_TabDimmedSelected] =
-            ImVec4(0.075f, 0.12f, 0.17f, 1.00f);
+            ImVec4(0.76f, 0.82f, 0.91f, 1.00f);
+
+        colors[ImGuiCol_TabUnfocused] = ImVec4(0.88f, 0.89f, 0.93f, 1.00f);
+        colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.76f, 0.82f, 0.91f, 1.00f);
+        colors[ImGuiCol_NavHighlight] = ImVec4(0.16f, 0.38f, 0.68f, 1.00f);
+        colors[ImGuiCol_TableHeaderBg] = ImVec4(0.78f, 0.82f, 0.89f, 1.00f);
+        colors[ImGuiCol_TableBorderStrong] = ImVec4(0.54f, 0.59f, 0.68f, 1.00f);
+        colors[ImGuiCol_TableBorderLight] = ImVec4(0.70f, 0.73f, 0.80f, 1.00f);
+        colors[ImGuiCol_TableRowBg] = ImVec4(0.94f, 0.95f, 0.97f, 1.00f);
+        colors[ImGuiCol_TableRowBgAlt] = ImVec4(0.89f, 0.91f, 0.94f, 1.00f);
+        colors[ImGuiCol_CheckMark] = ImVec4(0.16f, 0.38f, 0.68f, 1.00f);
+        colors[ImGuiCol_TextSelectedBg] = ImVec4(0.45f, 0.62f, 0.84f, 0.45f);
+        // Hide the bright drag/drop target marker; dock-window menu/drag icon is disabled via WindowMenuButtonPosition.
+        colors[ImGuiCol_DragDropTarget] = ImVec4(0.20f, 0.92f, 0.98f, 0.0f);
+        colors[ImGuiCol_NavWindowingHighlight] = ImVec4(0.16f, 0.38f, 0.68f, 0.70f);
+        colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.40f, 0.43f, 0.50f, 0.25f);
 
         // Docking
         colors[ImGuiCol_DockingPreview] =
-            ImVec4(0.25f, 0.62f, 0.88f, 0.35f);
+            ImVec4(0.25f, 0.48f, 0.78f, 0.35f);
 
         colors[ImGuiCol_DockingEmptyBg] =
-            ImVec4(0.030f, 0.035f, 0.045f, 1.00f);
+            ImVec4(0.90f, 0.91f, 0.94f, 1.00f);
 
-        io.Fonts->AddFontFromFileTTF(
-            "resources/fonts/IBMPlexSans-Variable.ttf",
-            22.0f);
+        // Optional font family setup. Keep the font files in resources/fonts.
+        // The built-in font remains a safe fallback if any file is absent.
+        ImFontConfig bodyConfig;
+        bodyConfig.OversampleH = 3;
+        bodyConfig.OversampleV = 2;
+        bodyConfig.PixelSnapH = false;
+        bodyConfig.RasterizerMultiply = 1.10f;
+
+        ImFont *bodyFont = io.Fonts->AddFontFromFileTTF(
+            "resources/fonts/IBMPlexSans-Regular.ttf", 20.0f, &bodyConfig);
+        if (!bodyFont)
+            bodyFont = io.Fonts->AddFontFromFileTTF(
+                "resources/fonts/IBMPlexSans-Variable.ttf", 20.0f, &bodyConfig);
+
+        ImFont *headingFont = io.Fonts->AddFontFromFileTTF(
+            "resources/fonts/IBMPlexSans-SemiBold.ttf", 22.0f, &bodyConfig);
+        if (!headingFont)
+            headingFont = io.Fonts->AddFontFromFileTTF(
+                "resources/fonts/IBMPlexSans-Variable.ttf", 22.0f, &bodyConfig);
+
+        ImFont *monoFont = io.Fonts->AddFontFromFileTTF(
+            "resources/fonts/IBMPlexMono-Regular.ttf", 18.0f, &bodyConfig);
+
+        // Sized built-in fonts keep the UI legible even if the optional TTFs
+        // have not yet been copied into the resources directory.
+        const auto makeDefaultFont = [&io](float sizePixels) -> ImFont *
+        {
+            ImFontConfig config;
+            config.SizePixels = sizePixels;
+            return io.Fonts->AddFontDefault(&config);
+        };
+
+        m_FontBody = bodyFont ? bodyFont : makeDefaultFont(20.0f);
+        m_FontHeading = headingFont ? headingFont : makeDefaultFont(22.0f);
+        m_FontMono = monoFont ? monoFont : makeDefaultFont(18.0f);
+        io.FontDefault = m_FontBody;
 
         ImGui_ImplGlfw_InitForOpenGL(window, true);
         ImGui_ImplOpenGL3_Init("#version 330");
@@ -607,7 +661,7 @@ namespace Mara
         ImGui::DockSpaceOverViewport(
             dockspaceID,
             ImGui::GetMainViewport(),
-            ImGuiDockNodeFlags_NoTabBar);
+            ImGuiDockNodeFlags_None);
 
         // ------------------------------------------------------------
         // Only build the layout if this dockspace doesn't have a
@@ -633,72 +687,33 @@ namespace Mara
             dockspaceID,
             ImGui::GetMainViewport()->Size);
 
-        // ------------------------------------------------------------
-        // Start with:
-        //
-        // ┌─────────────────────────────────────────┐
-        // │                                         │
-        // │              Main                       │
-        // │                                         │
-        // └─────────────────────────────────────────┘
-        // ------------------------------------------------------------
-
         ImGuiID mainNode = dockspaceID;
+        ImGuiID sideNode = 0;
+        ImGuiID workNode = 0;
+        ImGui::DockBuilderSplitNode(mainNode, ImGuiDir_Left, 0.21f,
+                                    &sideNode, &workNode);
 
-        // ------------------------------------------------------------
-        // Keep the World hierarchy compact and leave most space for the
-        // viewport and selected-object inspection.
-        // ------------------------------------------------------------
+        ImGuiID inspectorNode = 0;
+        ImGuiID centerNode = 0;
+        ImGui::DockBuilderSplitNode(workNode, ImGuiDir_Right, 0.23f,
+                                    &inspectorNode, &centerNode);
 
-        ImGuiID leftNode;
-        ImGuiID centerNode;
+        ImGuiID bottomNode = 0;
+        ImGuiID centerNodeWithBottom = 0;
+        ImGui::DockBuilderSplitNode(centerNode, ImGuiDir_Down, 0.22f,
+                                    &bottomNode, &centerNodeWithBottom);
 
-        ImGui::DockBuilderSplitNode(
-            mainNode,
-            ImGuiDir_Left,
-            0.18f,
-            &leftNode,
-            &centerNode);
+        ImGui::DockBuilderDockWindow("World", sideNode);
+        ImGui::DockBuilderDockWindow("Inspector", inspectorNode);
+        ImGui::DockBuilderDockWindow("Viewport", centerNodeWithBottom);
+        ImGui::DockBuilderDockWindow("Animation", bottomNode);
+        ImGui::DockBuilderDockWindow("Robot telemetry", bottomNode);
+        ImGui::DockBuilderDockWindow("Console", bottomNode);
 
-        ImGuiID rightNode;
-        ImGuiID viewportNode;
-
-        ImGui::DockBuilderSplitNode(
-            centerNode,
-            ImGuiDir_Right,
-            0.28f,
-            &rightNode,
-            &viewportNode);
-
-        ImGuiID bottomNode;
-        ImGuiID finalViewportNode;
-
-        ImGui::DockBuilderSplitNode(
-            viewportNode,
-            ImGuiDir_Down,
-            0.25f,
-            &bottomNode,
-            &finalViewportNode);
-
-        ImGui::DockBuilderDockWindow(
-            "World",
-            leftNode);
-
-        ImGui::DockBuilderDockWindow(
-            "Inspector",
-            rightNode);
-
-        ImGui::DockBuilderDockWindow(
-            "Viewport",
-            finalViewportNode);
-
-        ImGui::DockBuilderDockWindow(
-            "Console",
-            bottomNode);
-
-        ImGui::DockBuilderDockWindow(
-            "Robot telemetry",
-            bottomNode);
+        // Select the scene viewport as the initial center document tab.
+        // This is used when the default dock layout is first generated.
+        if (ImGuiDockNode *centerNodePtr = ImGui::DockBuilderGetNode(centerNodeWithBottom))
+            centerNodePtr->SelectedTabId = ImHashStr("Viewport");
 
         // Finish building the layout
         ImGui::DockBuilderFinish(dockspaceID);
@@ -766,7 +781,7 @@ namespace Mara
         if (!ImGui::BeginMainMenuBar())
             return;
 
-        ImGui::TextColored(ImVec4(0.08f, 0.32f, 0.58f, 1.0f), "NGINE");
+        ImGui::TextColored(ImVec4(0.16f, 0.38f, 0.68f, 1.0f), "NGINE");
         ImGui::SameLine();
         ImGui::TextDisabled("ROBOTICS STUDIO");
         ImGui::SameLine();
@@ -775,8 +790,8 @@ namespace Mara
 
         if (ImGui::BeginMenu("File"))
         {
-            ImGui::MenuItem("New world");
-            ImGui::MenuItem("Open world...");
+            ImGui::MenuItem("New world", "Ctrl+N");
+            ImGui::MenuItem("Open world...", "Ctrl+O");
             ImGui::MenuItem("Save world", "Ctrl+S");
             ImGui::EndMenu();
         }
@@ -803,8 +818,12 @@ namespace Mara
             ImGui::EndMenu();
         }
 
-        const float statusWidth = 270.0f;
-        ImGui::SameLine(ImGui::GetWindowWidth() - statusWidth);
+        const float statusWidth = 330.0f;
+        const float statusStart = ImGui::GetWindowWidth() - statusWidth;
+        if (ImGui::GetCursorPosX() < statusStart)
+            ImGui::SameLine(statusStart);
+        else
+            ImGui::SameLine();
         drawStatusBadge(
             m_SimulationRunning ? "● SIM RUNNING" : "● SIM PAUSED",
             m_SimulationRunning
@@ -826,7 +845,11 @@ namespace Mara
 
     void Editor::drawScene()
     {
-        ImGui::Begin("World", nullptr, ImGuiWindowFlags_NoTitleBar);
+        ImGui::Begin("World");
+
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, 6.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(7.0f, 7.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, 20.0f);
 
         drawPanelHeader("[R]", "ROBOT MODEL", "LINK TREE");
         ImGui::SameLine(ImGui::GetContentRegionAvail().x - 22.0f);
@@ -871,29 +894,68 @@ namespace Mara
         ImGui::SameLine(ImGui::GetContentRegionAvail().x - 48.0f);
         ImGui::TextColored(ImVec4(0.30f, 0.78f, 0.70f, 1.0f), "Ready");
 
+        ImGui::PopStyleVar(3);
         ImGui::End();
     }
 
     void Editor::drawViewport()
     {
-        ImGui::Begin("Viewport", nullptr, ImGuiWindowFlags_NoTitleBar);
+        // A distinct cool, deep surface frames the viewport as the primary
+        // workspace, while the bright cyan rail marks it as the active tool.
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.93f, 0.94f, 0.96f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.42f, 0.52f, 0.68f, 0.95f));
+        ImGui::Begin("Viewport");
 
-        drawPanelHeader("[3D]", "SCENE VIEWPORT", "PERSPECTIVE");
+        ImDrawList *windowDrawList = ImGui::GetWindowDrawList();
+        const ImVec2 windowMin = ImGui::GetWindowPos();
+        const float titleHeight = ImGui::GetFrameHeight();
+        windowDrawList->AddRectFilled(
+            ImVec2(windowMin.x, windowMin.y + titleHeight),
+            ImVec2(windowMin.x + 3.0f, windowMin.y + ImGui::GetWindowHeight()),
+            IM_COL32(35, 220, 235, 255));
+
+        ImGui::PushFont(m_FontHeading);
+        ImGui::TextColored(ImVec4(0.16f, 0.38f, 0.68f, 1.0f), "SCENE VIEWPORT");
+        ImGui::PopFont();
         ImGui::SameLine();
-        ImGui::TextDisabled("| Tienkung Robot | FPS");
-        ImGui::SameLine(ImGui::GetContentRegionAvail().x - 340.0f);
-        if (ImGui::SmallButton("Front"))
+        ImGui::TextDisabled("/  PERSPECTIVE");
+        ImGui::SameLine();
+        ImGui::TextDisabled("/  TIENKUNG ROBOT");
+
+        // Keep navigation controls grouped together on a dedicated toolbar row.
+        ImGui::Spacing();
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.82f, 0.85f, 0.90f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.68f, 0.78f, 0.91f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.45f, 0.62f, 0.84f, 1.0f));
+        if (ImGui::Button("Front view"))
             m_CameraResetRequested = true;
         ImGui::SameLine();
-        if (ImGui::SmallButton(m_ShowGrid ? "Grid ON" : "Grid OFF"))
+        if (ImGui::Button(m_ShowGrid ? "Grid  ON" : "Grid  OFF"))
             m_ShowGrid = !m_ShowGrid;
         ImGui::SameLine();
-        if (ImGui::Button(m_SimulationRunning ? "Pause" : "Play"))
-            m_SimulationRunning = !m_SimulationRunning;
+        if (ImGui::Button(m_ShowSensors ? "Sensors  ON" : "Sensors  OFF"))
+            m_ShowSensors = !m_ShowSensors;
         ImGui::SameLine();
-        if (ImGui::Button("Reset"))
+        ImGui::Dummy(ImVec2(8.0f, 1.0f));
+        ImGui::SameLine();
+        ImGui::PushStyleColor(ImGuiCol_Button, m_SimulationRunning
+                                                   ? ImVec4(0.42f, 0.25f, 0.08f, 1.0f)
+                                                   : ImVec4(0.18f, 0.34f, 0.55f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_SimulationRunning
+                                                          ? ImVec4(0.58f, 0.34f, 0.10f, 1.0f)
+                                                          : ImVec4(0.28f, 0.46f, 0.70f, 1.0f));
+        if (ImGui::Button(m_SimulationRunning ? "||  Pause simulation" : ">  Run simulation"))
+            m_SimulationRunning = !m_SimulationRunning;
+        ImGui::PopStyleColor(2);
+        ImGui::SameLine();
+        if (ImGui::Button("Reset camera"))
             m_CameraResetRequested = true;
+        ImGui::PopStyleColor(3);
+        ImGui::PopStyleVar();
+
         ImGui::Separator();
+        ImGui::Spacing();
 
         ImVec2 viewportSize = ImGui::GetContentRegionAvail();
 
@@ -948,17 +1010,26 @@ namespace Mara
                 }
             }
 
-            ImGui::SetCursorPos(ImVec2(18.0f, 58.0f));
-            ImGui::BeginChild("ViewportOverlay", ImVec2(250.0f, 142.0f), true);
-            ImGui::TextDisabled("SIMULATION");
+            ImGui::SetCursorScreenPos(ImVec2(sceneViewportMin.x + 18.0f, sceneViewportMin.y + 18.0f));
+            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.96f, 0.97f, 0.98f, 0.94f));
+            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.42f, 0.52f, 0.68f, 0.90f));
+            ImGui::BeginChild("ViewportOverlay", ImVec2(270.0f, 156.0f), true);
+            ImGui::PushFont(m_FontHeading);
+            ImGui::TextColored(ImVec4(0.16f, 0.38f, 0.68f, 1.0f), "SIMULATION STATUS");
+            ImGui::PopFont();
+            ImGui::Separator();
+            ImGui::PushFont(m_FontMono);
             ImGui::Text("State  %s", m_SimulationRunning ? "RUNNING" : "PAUSED");
             ImGui::Text("Time   %.2f / %.2f s", m_AnimationTime, m_AnimationDuration);
             ImGui::Text("Grid   %s", m_ShowGrid ? "ON" : "OFF");
             ImGui::Text("Sensors %s", m_ShowSensors ? "DEBUG" : "OFF");
             ImGui::TextDisabled("CAMERA");
             ImGui::Text("RMB orbit | MMB pan");
-            ImGui::Text("Wheel or +/- zoom");
+            ImGui::Text("Wheel / +/- zoom");
+            ImGui::Text("Pitch constrained | upright world");
+            ImGui::PopFont();
             ImGui::EndChild();
+            ImGui::PopStyleColor(2);
 
             if (m_ShowSensorOverlays)
             {
@@ -1077,11 +1148,12 @@ namespace Mara
             }
         }
         ImGui::End();
+        ImGui::PopStyleColor(2);
     }
 
     void Editor::drawInspector()
     {
-        ImGui::Begin("Inspector", nullptr, ImGuiWindowFlags_NoTitleBar);
+        ImGui::Begin("Inspector");
 
         const std::string selectedName =
             m_SelectedLink.empty()
@@ -1154,19 +1226,9 @@ namespace Mara
         if (!m_ShowAnimationPanel)
             return;
 
-        ImGui::SetNextWindowSize(
-            ImVec2(560.0f, 760.0f),
-            ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowPos(
-            ImVec2(
-                ImGui::GetMainViewport()->Pos.x +
-                    ImGui::GetMainViewport()->Size.x - 584.0f,
-                ImGui::GetMainViewport()->Pos.y + 72.0f),
-            ImGuiCond_FirstUseEver);
         if (!ImGui::Begin(
                 "Animation",
-                &m_ShowAnimationPanel,
-                ImGuiWindowFlags_NoDocking))
+                &m_ShowAnimationPanel))
         {
             ImGui::End();
             return;
@@ -1398,7 +1460,7 @@ namespace Mara
         if (!m_ShowConsole)
             return;
 
-        ImGui::Begin("Console", nullptr, ImGuiWindowFlags_NoTitleBar);
+        ImGui::Begin("Console");
 
         drawPanelHeader("[!]", "DIAGNOSTICS", "LOCAL");
         ImGui::TextDisabled("OUTPUT");
@@ -1429,7 +1491,7 @@ namespace Mara
             "Relay: %s:%u",
             m_TelemetryClient.host().c_str(),
             static_cast<unsigned>(m_TelemetryClient.port()));
-        ImGui::SameLine();
+        ImGui::Spacing();
         if (ImGui::Button(m_TelemetryClient.connected() ? "Reconnect" : "Connect"))
             m_TelemetryClient.connect(m_TelemetryClient.host(), m_TelemetryClient.port());
         ImGui::SameLine();
@@ -1487,13 +1549,13 @@ namespace Mara
                 ImVec2(0.0f, glm::max(100.0f, ImGui::GetContentRegionAvail().y - 116.0f))))
         {
             const char *columns[] = {"Motor", "Group", "Position", "Speed", "Current", "Temp", "State"};
-            ImGui::TableSetupColumn(columns[0]);
-            ImGui::TableSetupColumn(columns[1]);
-            ImGui::TableSetupColumn(columns[2]);
-            ImGui::TableSetupColumn(columns[3]);
-            ImGui::TableSetupColumn(columns[4]);
-            ImGui::TableSetupColumn(columns[5]);
-            ImGui::TableSetupColumn(columns[6]);
+            ImGui::TableSetupColumn(columns[0], ImGuiTableColumnFlags_WidthFixed, 78.0f);
+            ImGui::TableSetupColumn(columns[1], ImGuiTableColumnFlags_WidthStretch, 1.2f);
+            ImGui::TableSetupColumn(columns[2], ImGuiTableColumnFlags_WidthStretch, 1.0f);
+            ImGui::TableSetupColumn(columns[3], ImGuiTableColumnFlags_WidthStretch, 1.0f);
+            ImGui::TableSetupColumn(columns[4], ImGuiTableColumnFlags_WidthStretch, 1.0f);
+            ImGui::TableSetupColumn(columns[5], ImGuiTableColumnFlags_WidthStretch, 0.9f);
+            ImGui::TableSetupColumn(columns[6], ImGuiTableColumnFlags_WidthFixed, 92.0f);
             ImGui::TableHeadersRow();
             for (const auto &motor : snapshot.motors)
             {

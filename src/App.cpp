@@ -65,7 +65,7 @@ namespace Mara
         m_Renderer->initialize();
 
         glEnable(GL_DEPTH_TEST);
-        glClearColor(0.08f, 0.08f, 0.1f, 1.0f);
+        glClearColor(0.72f, 0.77f, 0.85f, 1.0f);
     }
 
     void App::run()
@@ -97,9 +97,10 @@ namespace Mara
 
     void App::updateCamera(float deltaTime)
     {
+        const bool viewportHovered = m_Editor->isViewportHovered();
         m_Camera.update(
             deltaTime,
-            m_Editor->isViewportHovered(),
+            viewportHovered,
             ImGui::GetIO().WantCaptureKeyboard);
     }
 

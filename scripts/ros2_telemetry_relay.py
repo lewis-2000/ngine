@@ -3,6 +3,8 @@
 
 Run this on the ROS 2 computer. It never creates publishers or service clients.
 It forwards newline-delimited JSON over TCP to an NGine instance.
+
+IMPORTANT: This script should be run on Host 1 that has the topics for all the joints, camera and depth. If it is run on host 2 the topics will not be available and the script will not work. The NGine instance should be run on Host 2.
 """
 
 import argparse
@@ -21,8 +23,10 @@ from rclpy.qos import qos_profile_sensor_data
 
 
 class TelemetryRelay(Node):
+    # Limit the size of the camera frame to avoid sending huge frames that could cause issues with NGine.
     _MAX_CAMERA_BYTES = 4 * 1024 * 1024
 
+    # Initialize the telemetry relay node with the given parameters.
     def __init__(
         self,
         server: socket.socket,
@@ -60,6 +64,7 @@ class TelemetryRelay(Node):
             "imu_yaw": 0.0,
         }
 
+    # Create the necessary subscriptions for the telemetry data.
         for topic in ("/arm/status", "/leg/status", "/head/status", "/waist/status"):
             self.create_subscription(
                 MotorStatusMsg,
@@ -124,6 +129,8 @@ class TelemetryRelay(Node):
         self.get_logger().info(
             f"NGine connected from {address[0]}:{address[1]}")
 
+        
+    # Callback for motor status messages. Updates the internal motor status dictionary with the latest data.
     def _motor_status_callback(self, message: MotorStatusMsg) -> None:
         with self._lock:
             for motor in message.status:
@@ -136,26 +143,31 @@ class TelemetryRelay(Node):
                     "error": int(motor.error),
                 }
 
+    # Callback for body state messages. Updates the internal data dictionary with the latest body control state.
     def _body_state_callback(self, message: NodeState) -> None:
         with self._lock:
             self._data["bodycontrol_state"] = int(message.state)
 
+    # Callback for process state messages. Updates the internal data dictionary with the latest process state.
     def _process_state_callback(self, message: NodeState) -> None:
         with self._lock:
             self._data["process_state"] = int(message.state)
 
+    # Callback for power status messages. Updates the internal data dictionary with the latest battery voltage, current, and power.
     def _power_callback(self, message: PowerStatus) -> None:
         with self._lock:
             self._data["battery_voltage"] = float(message.battery_voltage)
             self._data["battery_current"] = float(message.battery_current)
             self._data["battery_power"] = float(message.battery_power)
 
+    # Callback for IMU messages. Updates the internal data dictionary with the latest IMU data.
     def _imu_callback(self, message: Imu) -> None:
         with self._lock:
             self._data["imu_roll"] = float(message.euler.roll)
             self._data["imu_pitch"] = float(message.euler.pitch)
             self._data["imu_yaw"] = float(message.euler.yaw)
 
+    # Callback for camera messages. Encodes the received JPEG image data in base64 and stores it for later transmission.
     def _camera_callback(self, message: CompressedImage) -> None:
         with self._lock:
             if not message.data:
@@ -169,6 +181,7 @@ class TelemetryRelay(Node):
                 return
             self._camera_jpeg = base64.b64encode(bytes(message.data)).decode("ascii")
 
+    # Callback for depth messages. Processes the received depth image data and stores it for later transmission.
     def _depth_callback(self, message: Image) -> None:
         if message.encoding not in ("16UC1", "mono16"):
             if message.encoding != self._last_depth_encoding:
@@ -214,6 +227,7 @@ class TelemetryRelay(Node):
             self._depth_width = target_width
             self._depth_height = target_height
 
+    # Send a snapshot of the current telemetry data to the connected NGine client.
     def _send_snapshot(self) -> None:
         if self._client is None:
             return
@@ -242,6 +256,8 @@ class TelemetryRelay(Node):
 
 
 def main() -> None:
+
+    # Parse command-line arguments for the telemetry relay script.
     parser = argparse.ArgumentParser()
     parser.add_argument("--bind", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8765)
@@ -260,6 +276,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    # Set up a TCP server socket to listen for incoming NGine telemetry client connections.
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((args.bind, args.port))
@@ -267,6 +284,7 @@ def main() -> None:
     server.setblocking(False)
     print(f"Waiting for NGine telemetry client on {args.bind}:{args.port}")
 
+    # Initialize the ROS 2 node and start spinning to process incoming telemetry data and handle client connections.
     rclpy.init()
     node = TelemetryRelay(
         server,
@@ -277,8 +295,10 @@ def main() -> None:
         not args.disable_depth,
     )
     try:
+        # Spin the ROS 2 node to process incoming telemetry data and handle client connections.
         rclpy.spin(node)
     finally:
+        print("Shutting down NGine telemetry relay...")
         node.close_client()
         node.destroy_node()
         server.close()

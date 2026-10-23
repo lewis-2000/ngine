@@ -35,7 +35,7 @@ Plane::Plane(float size)
 
               return Mesh(std::move(vertices), std::move(indices), {}, "ground_grid", true);
           }()),
-      m_Material{MeshMaterialOverride::Mode::Color, glm::vec3(0.30f, 0.34f, 0.36f), {}}
+      m_Material{MeshMaterialOverride::Mode::Color, glm::vec3(0.52f, 0.58f, 0.68f), {}}
 {
 }
 
