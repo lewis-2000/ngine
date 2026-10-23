@@ -9,6 +9,12 @@
 
 namespace Mara
 {
+    namespace
+    {
+        constexpr float kMinimumCameraDistance = 0.35f;
+        constexpr float kMaximumCameraDistance = 20.0f;
+    }
+
     void Camera::update(float deltaTime, bool viewportHovered, bool captureKeyboard)
     {
         const bool rightMouseDown =
@@ -60,7 +66,10 @@ namespace Mara
              MaraGl::Input::IsKeyPressed(GLFW_KEY_KP_SUBTRACT)))
             m_Distance += deltaTime * 3.0f;
 
-        m_Distance = glm::clamp(m_Distance, 1.5f, 20.0f);
+        m_Distance = glm::clamp(
+            m_Distance,
+            kMinimumCameraDistance,
+            kMaximumCameraDistance);
     }
 
     void Camera::reset()

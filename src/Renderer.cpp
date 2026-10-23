@@ -78,10 +78,10 @@ namespace Mara
                 m_Editor.sceneWidth(),
                 m_Editor.sceneHeight()));
         m_Shader->setVec3("viewPos", cameraPosition);
-        m_Shader->setVec3("lightDirection", -1.0f, -1.0f, -1.0f);
+        m_Shader->setVec3("lightPosition", cameraPosition);
         m_Shader->setVec3("lightColor", 1.0f, 1.0f, 1.0f);
         m_Shader->setVec3("ambientColor", 1.0f, 1.0f, 1.0f);
-        m_Shader->setFloat("ambientStrength", 0.3f);
+        m_Shader->setFloat("ambientStrength", 0.2f);
         m_Editor.setGizmoMatrices(
             camera.viewMatrix(),
             camera.projectionMatrix(m_Editor.sceneWidth(), m_Editor.sceneHeight()),

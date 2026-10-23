@@ -65,7 +65,7 @@ namespace Mara
         m_Renderer->initialize();
 
         glEnable(GL_DEPTH_TEST);
-        glClearColor(0.72f, 0.77f, 0.85f, 1.0f);
+        glClearColor(0.48f, 0.48f, 0.48f, 1.0f);
     }
 
     void App::run()
