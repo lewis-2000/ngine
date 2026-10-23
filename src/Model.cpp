@@ -22,11 +22,13 @@ Model::Model(const std::string &path)
     processNode(scene->mRootNode, scene);
 }
 
-void Model::Draw(Shader &shader)
+void Model::Draw(
+    Shader &shader,
+    const MeshMaterialOverride *overrideMaterial)
 {
     for (Mesh &mesh : meshes)
     {
-        mesh.Draw(shader);
+        mesh.Draw(shader, overrideMaterial);
     }
 }
 

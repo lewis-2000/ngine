@@ -423,7 +423,12 @@ namespace Mara
             {
                 const MotorTelemetry *motor = positionFor(ids[index]);
                 if (motor && motor->error == 0)
-                    m_Robot->setJointPosition(joints[index], motor->position);
+                {
+                    float position = motor->position;
+                    if (ids[index] >= 21 && ids[index] <= 27)
+                        position = -position;
+                    m_Robot->setJointPosition(joints[index], position);
+                }
             }
         };
 
@@ -444,7 +449,12 @@ namespace Mara
             {
                 const MotorTelemetry *motor = positionFor(ids[index]);
                 if (motor && motor->error == 0)
-                    m_Robot->setJointPosition(joints[index], motor->position);
+                {
+                    float position = motor->position;
+                    if (ids[index] == 61 || ids[index] == 62 || ids[index] == 66)
+                        position = -position;
+                    m_Robot->setJointPosition(joints[index], position);
+                }
             }
         };
 
@@ -1010,27 +1020,6 @@ namespace Mara
                 }
             }
 
-            ImGui::SetCursorScreenPos(ImVec2(sceneViewportMin.x + 18.0f, sceneViewportMin.y + 18.0f));
-            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.96f, 0.97f, 0.98f, 0.94f));
-            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.42f, 0.52f, 0.68f, 0.90f));
-            ImGui::BeginChild("ViewportOverlay", ImVec2(270.0f, 156.0f), true);
-            ImGui::PushFont(m_FontHeading);
-            ImGui::TextColored(ImVec4(0.16f, 0.38f, 0.68f, 1.0f), "SIMULATION STATUS");
-            ImGui::PopFont();
-            ImGui::Separator();
-            ImGui::PushFont(m_FontMono);
-            ImGui::Text("State  %s", m_SimulationRunning ? "RUNNING" : "PAUSED");
-            ImGui::Text("Time   %.2f / %.2f s", m_AnimationTime, m_AnimationDuration);
-            ImGui::Text("Grid   %s", m_ShowGrid ? "ON" : "OFF");
-            ImGui::Text("Sensors %s", m_ShowSensors ? "DEBUG" : "OFF");
-            ImGui::TextDisabled("CAMERA");
-            ImGui::Text("RMB orbit | MMB pan");
-            ImGui::Text("Wheel / +/- zoom");
-            ImGui::Text("Pitch constrained | upright world");
-            ImGui::PopFont();
-            ImGui::EndChild();
-            ImGui::PopStyleColor(2);
-
             if (m_ShowSensorOverlays)
             {
                 const ImVec2 viewportMin = sceneViewportMin;
@@ -1541,12 +1530,31 @@ namespace Mara
         ImGui::TextDisabled("(read-only, position units not converted)");
         ImGui::Separator();
 
+        if (ImGui::Button("Open motor telemetry"))
+            m_ShowMotorTelemetryPanel = true;
+        ImGui::SameLine();
+        ImGui::TextDisabled("Open the full motor table in a floating panel.");
+        ImGui::End();
+
+        if (!m_ShowMotorTelemetryPanel)
+            return;
+
+        ImGui::SetNextWindowSize(ImVec2(760.0f, 420.0f), ImGuiCond_FirstUseEver);
+        ImGui::Begin(
+            "Motor telemetry",
+            &m_ShowMotorTelemetryPanel,
+            ImGuiWindowFlags_NoDocking);
+        drawPanelHeader(
+            "[MOT]",
+            "MOTOR TELEMETRY",
+            live ? "LIVE DATA" : "WAITING");
+
         if (ImGui::BeginTable(
-                "motorTelemetry",
+                "motorTelemetryFloating",
                 7,
                 ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                     ImGuiTableFlags_ScrollY,
-                ImVec2(0.0f, glm::max(100.0f, ImGui::GetContentRegionAvail().y - 116.0f))))
+                ImVec2(0.0f, ImGui::GetContentRegionAvail().y - 28.0f)))
         {
             const char *columns[] = {"Motor", "Group", "Position", "Speed", "Current", "Temp", "State"};
             ImGui::TableSetupColumn(columns[0], ImGuiTableColumnFlags_WidthFixed, 78.0f);
@@ -1593,7 +1601,7 @@ namespace Mara
         }
 
         ImGui::TextDisabled(
-            "Read-only feedback. Position units are vendor-reported; no conversion is applied.");
+            "Raw read-only bridge values. Model playback applies mirrored joint direction conversion.");
         ImGui::End();
     }
 

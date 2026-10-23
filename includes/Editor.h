@@ -98,6 +98,7 @@ namespace Mara
         bool m_ShowAnimationPanel = true;
         bool m_ShowSensorOverlays = true;
         bool m_ShowTelemetry = true;
+        bool m_ShowMotorTelemetryPanel = false;
         bool m_ApplyTelemetryToRobot = false;
         unsigned int m_RemoteCameraTexture = 0;
         unsigned int m_RemoteDepthTexture = 0;

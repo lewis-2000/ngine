@@ -51,6 +51,7 @@ private:
     {
         std::unique_ptr<Model> model;
         glm::mat4 transform{1.0f};
+        MeshMaterialOverride material;
     };
 
     using LinkModels = std::vector<LoadedVisual>;

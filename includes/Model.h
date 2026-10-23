@@ -13,7 +13,9 @@ class Model
 public:
     explicit Model(const std::string &path);
 
-    void Draw(Shader &shader);
+    void Draw(
+        Shader &shader,
+        const MeshMaterialOverride *overrideMaterial = nullptr);
     std::size_t meshCount() const { return meshes.size(); }
 
 private:

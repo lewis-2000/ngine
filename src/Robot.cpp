@@ -61,6 +61,10 @@ bool Robot::LoadFromUrdf(const std::filesystem::path &urdfPath)
             loadedVisual.transform = glm::scale(
                 loadedVisual.transform,
                 visual.geometry.mesh_scale);
+            loadedVisual.material = {
+                MeshMaterialOverride::Mode::Color,
+                glm::vec3(visual.material_color),
+                {}};
             m_LinkModels[linkName].push_back(std::move(loadedVisual));
         }
     }
@@ -76,6 +80,15 @@ void Robot::setJointPosition(const std::string &jointName, float position)
         return;
 
     const UrdfJoint &joint = jointIt->second;
+    if (!std::isfinite(position))
+        return;
+
+    if (joint.type == UrdfJoint::Type::CONTINUOUS)
+    {
+        constexpr float twoPi = 6.28318530717958647692f;
+        position = std::remainder(position, twoPi);
+    }
+
     if (joint.limit.has_limit)
     {
         position = glm::clamp(
@@ -230,7 +243,7 @@ void Robot::Draw(
         for (const LoadedVisual &visual : models)
         {
             shader.setMat4("model", transform * visual.transform);
-            visual.model->Draw(shader);
+            visual.model->Draw(shader, &visual.material);
         }
     }
 }
