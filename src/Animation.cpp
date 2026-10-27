@@ -6,6 +6,7 @@
 #include <cmath>
 #include <fstream>
 #include <initializer_list>
+#include <iostream>
 #include <regex>
 #include <sstream>
 #include <utility>
@@ -80,6 +81,83 @@ namespace Mara
             if (value == "emergency")
                 return AnimationClip::Layer::Emergency;
             return value == "base" ? AnimationClip::Layer::Base : fallback;
+        }
+
+        bool parseExplicitTracks(
+            const std::string &text,
+            const Robot &robot,
+            AnimationClip &clip)
+        {
+            const std::regex trackPattern(
+                R"REGEX("joint"\s*:\s*"([^"]+)"\s*,\s*"keyframes"\s*:\s*\[([\s\S]*?)\])REGEX");
+            const std::regex keyframePattern(
+                R"(\{\s*"time"\s*:\s*(-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+))\s*,\s*"position"\s*:\s*(-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+))\s*\})");
+
+            bool foundTrack = false;
+            for (std::sregex_iterator trackIt(text.begin(), text.end(), trackPattern), end;
+                 trackIt != end;
+                 ++trackIt)
+            {
+                foundTrack = true;
+                const std::string jointName = (*trackIt)[1].str();
+                const auto jointIt = robot.data().joints.find(jointName);
+                if (jointIt == robot.data().joints.end() ||
+                    jointIt->second.type == UrdfJoint::Type::FIXED)
+                {
+                    std::cerr << "Ignoring animation '" << clip.name
+                              << "': unknown or fixed joint '" << jointName << "'\n";
+                    return false;
+                }
+
+                JointAnimationTrack track;
+                track.jointName = jointName;
+                const std::string keyframesText = (*trackIt)[2].str();
+                for (std::sregex_iterator keyframeIt(
+                         keyframesText.begin(),
+                         keyframesText.end(),
+                         keyframePattern);
+                     keyframeIt != end;
+                     ++keyframeIt)
+                {
+                    const float time = std::stof((*keyframeIt)[1].str());
+                    const float position = std::stof((*keyframeIt)[2].str());
+                    if (!std::isfinite(time) || !std::isfinite(position) ||
+                        time < 0.0f || time > clip.duration)
+                    {
+                        std::cerr << "Ignoring animation '" << clip.name
+                                  << "': invalid keyframe for joint '"
+                                  << jointName << "'\n";
+                        return false;
+                    }
+                    if (jointIt->second.limit.has_limit &&
+                        (position < jointIt->second.limit.lower ||
+                         position > jointIt->second.limit.upper))
+                    {
+                        std::cerr << "Ignoring animation '" << clip.name
+                                  << "': keyframe exceeds limits for joint '"
+                                  << jointName << "'\n";
+                        return false;
+                    }
+                    track.keyframes.push_back({time, position});
+                }
+
+                if (track.keyframes.empty())
+                {
+                    std::cerr << "Ignoring animation '" << clip.name
+                              << "': track '" << jointName
+                              << "' has no keyframes\n";
+                    return false;
+                }
+
+                std::sort(
+                    track.keyframes.begin(),
+                    track.keyframes.end(),
+                    [](const JointKeyframe &left, const JointKeyframe &right)
+                    { return left.time < right.time; });
+                clip.tracks.push_back(std::move(track));
+            }
+
+            return !foundTrack || !clip.tracks.empty();
         }
     }
 
@@ -337,6 +415,12 @@ namespace Mara
             AnimationClip clip;
             clip.name = name;
             clip.duration = jsonFloat(text, "duration", 1.0f);
+            if (!std::isfinite(clip.duration) || clip.duration <= 0.0f)
+            {
+                std::cerr << "Ignoring animation '" << clip.name
+                          << "': duration must be positive\n";
+                continue;
+            }
             clip.priority = jsonInt(text, "priority", 0);
             clip.loop = jsonBool(text, "loop", false);
             clip.returnToIdle = jsonBool(text, "return_to_idle", false);
@@ -346,6 +430,15 @@ namespace Mara
             clip.layer = jsonLayer(text, AnimationClip::Layer::Base);
             const float motionScale = jsonFloat(text, "motion_scale", 1.0f);
             clip.tags.push_back(name);
+
+            if (text.find("\"tracks\"") != std::string::npos)
+            {
+                if (!parseExplicitTracks(text, robot, clip))
+                    continue;
+                m_Catalog.registerClip(std::move(clip));
+                loaded = true;
+                continue;
+            }
 
             const auto addTrack = [&clip, motionScale](
                                       const UrdfJoint &joint)

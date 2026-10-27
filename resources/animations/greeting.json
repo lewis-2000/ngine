@@ -7,5 +7,22 @@
   "return_to_idle": true,
   "requires_ground_contact": false,
   "allows_harness": true,
-  "motion_scale": 1.0
+  "tracks": [
+    {
+      "joint": "left_joint3",
+      "keyframes": [
+        { "time": 0.0, "position": 0.0 },
+        { "time": 1.0, "position": 0.15 },
+        { "time": 2.0, "position": 0.0 }
+      ]
+    },
+    {
+      "joint": "elbow_l_joint",
+      "keyframes": [
+        { "time": 0.0, "position": 0.0 },
+        { "time": 1.0, "position": -0.2 },
+        { "time": 2.0, "position": 0.0 }
+      ]
+    }
+  ]
 }

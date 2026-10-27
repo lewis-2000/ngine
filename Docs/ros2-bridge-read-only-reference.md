@@ -293,8 +293,9 @@ the vendor configuration order for the arms and legs, plus the waist motor:
 31    -> waist_joint
 ```
 
-The model option is disabled by default and applies the values as received
-with mirrored-joint direction conversion: right-arm positions are negated,
-as are right hip-roll, hip-yaw, and ankle-roll positions. Pitch joints retain
-their vendor sign. There is currently no degree/radian conversion because the
-vendor unit has not been confirmed.
+The model option is disabled by default and applies the values as received in
+radians, with the current simulation conversion table applying mirrored
+directions to the right-arm joints, right hip-roll, and right ankle-roll.
+Right hip-yaw and the remaining pitch joints retain their vendor sign. These
+direction conversions are simulation assumptions until verified against the
+hardware.

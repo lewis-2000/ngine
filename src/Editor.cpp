@@ -57,6 +57,51 @@ namespace Mara
         {
             ImGui::TextColored(color, "%s", label);
         }
+
+        struct MotorJointMapping
+        {
+            int motorId;
+            const char *jointName;
+            float modelSign;
+        };
+
+        constexpr std::array<MotorJointMapping, 7> kLeftArmMappings{{
+            {11, "left_joint1", 1.0f},
+            {12, "shoulder_roll_l_joint", 1.0f},
+            {13, "left_joint3", 1.0f},
+            {14, "elbow_l_joint", 1.0f},
+            {15, "left_joint5", 1.0f},
+            {16, "left_joint6", 1.0f},
+            {17, "left_joint7", 1.0f},
+        }};
+
+        constexpr std::array<MotorJointMapping, 7> kRightArmMappings{{
+            {21, "right_joint1", -1.0f},
+            {22, "shoulder_roll_r_joint", -1.0f},
+            {23, "right_joint3", -1.0f},
+            {24, "elbow_r_joint", -1.0f},
+            {25, "right_joint5", -1.0f},
+            {26, "right_joint6", -1.0f},
+            {27, "right_joint7", -1.0f},
+        }};
+
+        constexpr std::array<MotorJointMapping, 6> kLeftLegMappings{{
+            {51, "hip_roll_l_joint", 1.0f},
+            {52, "hip_yaw_l_joint", 1.0f},
+            {53, "hip_pitch_l_joint", 1.0f},
+            {54, "knee_pitch_l_joint", 1.0f},
+            {55, "ankle_pitch_l_joint", 1.0f},
+            {56, "ankle_roll_l_joint", 1.0f},
+        }};
+
+        constexpr std::array<MotorJointMapping, 6> kRightLegMappings{{
+            {61, "hip_roll_r_joint", -1.0f},
+            {62, "hip_yaw_r_joint", 1.0f},
+            {63, "hip_pitch_r_joint", 1.0f},
+            {64, "knee_pitch_r_joint", 1.0f},
+            {65, "ankle_pitch_r_joint", 1.0f},
+            {66, "ankle_roll_r_joint", -1.0f},
+        }};
     }
 
     Editor::~Editor()
@@ -416,56 +461,22 @@ namespace Mara
         };
 
         const auto applyGroup = [&positionFor, this](
-                                    const std::array<int, 7> &ids,
-                                    const std::array<const char *, 7> &joints)
+                                    const auto &mappings)
         {
-            for (std::size_t index = 0; index < ids.size(); ++index)
+            for (const MotorJointMapping &mapping : mappings)
             {
-                const MotorTelemetry *motor = positionFor(ids[index]);
+                const MotorTelemetry *motor = positionFor(mapping.motorId);
                 if (motor && motor->error == 0)
-                {
-                    float position = motor->position;
-                    if (ids[index] >= 21 && ids[index] <= 27)
-                        position = -position;
-                    m_Robot->setJointPosition(joints[index], position);
-                }
+                    m_Robot->setJointPosition(
+                        mapping.jointName,
+                        mapping.modelSign * motor->position);
             }
         };
 
-        applyGroup(
-            {11, 12, 13, 14, 15, 16, 17},
-            {"left_joint1", "shoulder_roll_l_joint", "left_joint3",
-             "elbow_l_joint", "left_joint5", "left_joint6", "left_joint7"});
-        applyGroup(
-            {21, 22, 23, 24, 25, 26, 27},
-            {"right_joint1", "shoulder_roll_r_joint", "right_joint3",
-             "elbow_r_joint", "right_joint5", "right_joint6", "right_joint7"});
-
-        const auto applySix = [&positionFor, this](
-                                  const std::array<int, 6> &ids,
-                                  const std::array<const char *, 6> &joints)
-        {
-            for (std::size_t index = 0; index < ids.size(); ++index)
-            {
-                const MotorTelemetry *motor = positionFor(ids[index]);
-                if (motor && motor->error == 0)
-                {
-                    float position = motor->position;
-                    if (ids[index] == 61 || ids[index] == 62 || ids[index] == 66)
-                        position = -position;
-                    m_Robot->setJointPosition(joints[index], position);
-                }
-            }
-        };
-
-        applySix(
-            {51, 52, 53, 54, 55, 56},
-            {"hip_roll_l_joint", "hip_yaw_l_joint", "hip_pitch_l_joint",
-             "knee_pitch_l_joint", "ankle_pitch_l_joint", "ankle_roll_l_joint"});
-        applySix(
-            {61, 62, 63, 64, 65, 66},
-            {"hip_roll_r_joint", "hip_yaw_r_joint", "hip_pitch_r_joint",
-             "knee_pitch_r_joint", "ankle_pitch_r_joint", "ankle_roll_r_joint"});
+        applyGroup(kLeftArmMappings);
+        applyGroup(kRightArmMappings);
+        applyGroup(kLeftLegMappings);
+        applyGroup(kRightLegMappings);
 
         if (const MotorTelemetry *motor = positionFor(31); motor && motor->error == 0)
             m_Robot->setJointPosition("waist_joint", motor->position);
