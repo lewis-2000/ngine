@@ -1,0 +1,307 @@
+{
+  "name": "walking",
+  "duration": 2,
+  "loop": false,
+  "tracks": [
+    {
+      "joint": "R_pinky_proximal_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "R_ring_intermediate_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "R_middle_intermediate_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "R_middle_proximal_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "R_index_intermediate_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "R_thumb_distal_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "R_thumb_intermediate_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "R_thumb_proximal_yaw_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "right_joint5",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "right_joint7",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "elbow_r_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "shoulder_roll_r_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "right_joint6",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "L_pinky_intermediate_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "L_pinky_proximal_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "L_ring_proximal_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "R_thumb_proximal_pitch_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "hip_yaw_l_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "knee_pitch_r_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "hip_yaw_r_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "hip_pitch_r_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "ankle_pitch_l_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "ankle_pitch_r_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "ankle_roll_l_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "R_pinky_intermediate_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "hip_pitch_l_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "hip_roll_l_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "elbow_l_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "R_index_proximal_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "L_middle_intermediate_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "L_thumb_proximal_yaw_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "left_joint1",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "shoulder_roll_l_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "left_joint3",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "knee_pitch_l_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "left_joint5",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "L_index_proximal_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "right_joint3",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "L_index_intermediate_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "left_joint6",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "ankle_roll_r_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "left_joint7",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "R_ring_proximal_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "right_joint1",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "L_thumb_proximal_pitch_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "L_thumb_distal_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "L_thumb_intermediate_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "L_ring_intermediate_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "hip_roll_r_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    },
+    {
+      "joint": "L_middle_proximal_joint",
+      "keyframes": [
+        { "time": 0.06, "position": 0 }
+      ]
+    }
+  ]
+}

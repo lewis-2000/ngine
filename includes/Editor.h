@@ -10,6 +10,7 @@
 #include "PoseEstimator.h"
 #include "Robot.h"
 #include "RosTelemetryClient.h"
+#include "OccupancyMap.h"
 #include <glm/mat4x4.hpp>
 
 struct GLFWwindow;
@@ -46,6 +47,7 @@ namespace Mara
         bool showSensors() const { return m_ShowSensors; }
         bool simulationRunning() const { return m_SimulationRunning; }
         bool motionStreamingActive() const { return m_SimulationRunning; }
+        bool mapModeActive() const { return m_ShowMap || m_SimulationWorkspace; }
         float animationTime() const { return m_AnimationTime; }
         float animationDuration() const { return m_AnimationDuration; }
         const std::string &currentAnimation() const
@@ -78,11 +80,19 @@ namespace Mara
         void drawConsole();
         void drawPosePanel();
         void drawTelemetry();
+        void drawMapPanel();
+        void drawSimulationWorkspace();
+        void updateSimulation(float deltaTime);
+        void enterSimulationWorkspace();
+        void resetTestEnvironment();
         void applyTelemetryToRobot();
         void updateRemoteCameraTexture();
         void refreshDemoAnimation();
         void setSimulationTime(float time);
         void resetSimulation();
+        void captureAuthoringKeyframe();
+        bool saveAuthoringAnimation();
+        void previewAnimation(const AnimationClip &clip);
 
     private:
         ImFont *m_FontBody = nullptr;
@@ -98,6 +108,12 @@ namespace Mara
         bool m_ShowAnimationPanel = true;
         bool m_ShowSensorOverlays = true;
         bool m_ShowTelemetry = true;
+        bool m_ShowMap = false;
+        bool m_SimulationWorkspace = false;
+        bool m_ShowWorkspaceChooser = true;
+        bool m_TestEnvironmentGenerated = false;
+        bool m_MapTopView = true;
+        char m_MapPath[260] = "maps/scene.map";
         bool m_ShowMotorTelemetryPanel = false;
         bool m_ApplyTelemetryToRobot = false;
         unsigned int m_RemoteCameraTexture = 0;
@@ -128,8 +144,25 @@ namespace Mara
         AnimationMixer m_AnimationMixer;
         std::string m_AnimationConfiguration;
         std::string m_AnimationStatus;
+        AnimationClip m_AuthoringClip;
+        std::string m_AuthoringName = "new_animation";
+        float m_AuthoringDuration = 2.0f;
+        float m_AuthoringTime = 0.0f;
         std::uint64_t m_LastTelemetrySequence = 0;
+        std::uint64_t m_LastMappedDepthSequence = 0;
         bool m_TelemetryErrorLatched = false;
+        OccupancyMap m_OccupancyMap;
+        OccupancyMap m_SimulationMap;
+        glm::vec3 m_SimulatedRobotPosition{-4.0f, 0.25f, -4.0f};
+        float m_SimulatedRobotYaw = 0.0f;
+        float m_SimulationSpeed = 2.0f;
+        std::string m_SimulationStatus = "Ready";
+        bool m_MapNavigationMode = true;
+        float m_MapOrbitYaw = 0.65f;
+        float m_MapOrbitPitch = 0.55f;
+        float m_MapZoom = 1.0f;
+        glm::vec2 m_MapPan{0.0f};
+        int m_MapViewPreset = 0;
 
         float m_Position[3] = {0.0f, 0.0f, 0.0f};
         float m_Rotation[3] = {0.0f, 0.0f, 0.0f};

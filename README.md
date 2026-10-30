@@ -33,6 +33,9 @@ Short recordings showing the app running (a proof of life). They do not cover ev
 - Joint controls and demo animation controls
 - Live read-only motor, power, IMU, and controller-state telemetry
 - RGB and depth camera previews
+- Persistent depth occupancy maps with 3D and top-down visualization
+- Occupancy collision queries and map save/load
+- Local simulation workspace with generated obstacles and collision-blocked movement
 
 **Dependencies** (all vendored under `vendors/`): GLFW, GLAD, Dear ImGui, GLM, Assimp, TinyXML-2, stb.
 
@@ -204,6 +207,16 @@ The last option applies healthy, read-only motor positions to the simulated robo
 - Use the **RGB** and **Depth** tabs in the camera preview; aspect ratios are preserved.
 - RGB falls back to the local camera preview if no ROS frame is available.
 - The detailed preview reports received frame dimensions but does not request higher resolution. The relay keeps only the newest frame, so opening it adds no network or decode load.
+
+### Depth map
+
+Open **View > Depth map** to enable Map mode. New depth frames are accumulated into a persistent voxel map, which can be viewed as a projected 3D display or an X/Z top view. Map mode pauses the detailed robot scene render and displays a simple robot proxy marker. Maps can be saved to or loaded from the configured `.map` path.
+
+The initial projection uses configurable default camera intrinsics and the sensor-relative frame. Accurate world-aligned mapping while the robot moves requires camera intrinsics and robot localization/odometry to be added to the telemetry protocol.
+
+### Simulation workspace
+
+Use **View > Simulation workspace** to switch from the animation/editor workspace to a full-window map and collision environment. The workspace has a dedicated controls panel and shows the polygon-based **3D visualization** and **2D top view** simultaneously. Use **Navigate map** to orbit the 3D camera with left-drag, pan with right-drag, and zoom with the mouse wheel. Use **Drive robot** to move the simulated robot with **W/A/S/D** or the arrow keys; movement is blocked when the robot proxy intersects an occupied voxel. The 3D view projects accumulated depth voxels and draws amber scan rays from the depth scanner; the map updates when each new depth frame arrives. This workspace is entirely local and does not publish commands or telemetry values to the real robot. Use **View > Animation workspace** to return to the robot and animation panels.
 
 Protocol and safety details: [Docs/ros2-bridge-read-only-reference.md](Docs/ros2-bridge-read-only-reference.md).
 

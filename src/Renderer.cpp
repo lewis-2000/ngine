@@ -58,6 +58,9 @@ namespace Mara
         Entity groundEntity,
         const Camera &camera)
     {
+        if (m_Editor.mapModeActive())
+            return;
+
         m_Editor.beginSceneRender(m_Window.getWidth(), m_Window.getHeight());
         m_Shader->use();
 
@@ -96,7 +99,8 @@ namespace Mara
         groundMatrix = glm::scale(groundMatrix, groundTransform->scale);
         m_Shader->setBool("uSelectedLink", false);
         m_Plane.Draw(*m_Shader, groundMatrix, m_Editor.showGrid());
-        m_Robot.Draw(*m_Shader, model, m_Editor.selectedLink());
+        if (!m_Editor.mapModeActive())
+            m_Robot.Draw(*m_Shader, model, m_Editor.selectedLink());
 
         const std::string &selectedLink = m_Editor.selectedLink();
         const bool sensorLink =

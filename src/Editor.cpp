@@ -4,9 +4,13 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
+#include <fstream>
 #include <iomanip>
+#include <iterator>
 #include <sstream>
 #include <utility>
+#include <filesystem>
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -17,6 +21,7 @@
 
 #include <GLFW/glfw3.h>
 #include <glm/gtc/type_ptr.hpp>
+#include "Input.h"
 
 namespace Mara
 {
@@ -370,7 +375,26 @@ namespace Mara
             }
         }
         updateRemoteCameraTexture();
+        if (m_TelemetryClient.hasData())
+        {
+            const RosTelemetrySnapshot &snapshot = m_TelemetryClient.snapshot();
+            if (snapshot.depthSequence != 0 &&
+                snapshot.depthSequence != m_LastMappedDepthSequence)
+            {
+                m_OccupancyMap.integrateDepth(
+                    snapshot.depth,
+                    snapshot.depthWidth,
+                    snapshot.depthHeight,
+                    1.0f,
+                    500.0f,
+                    500.0f,
+                    static_cast<float>(snapshot.depthWidth) * 0.5f,
+                    static_cast<float>(snapshot.depthHeight) * 0.5f);
+                m_LastMappedDepthSequence = snapshot.depthSequence;
+            }
+        }
         applyTelemetryToRobot();
+        updateSimulation(deltaTime);
 
         AnimationEvent event;
         if (m_AnimationEventQueue.tryPop(event))
@@ -594,6 +618,142 @@ namespace Mara
         m_AnimationTime = m_AnimationMixer.time();
     }
 
+    void Editor::captureAuthoringKeyframe()
+    {
+        if (!m_Robot || !m_Robot->isLoaded())
+            return;
+
+        m_AuthoringClip.name = m_AuthoringName;
+        m_AuthoringClip.duration = m_AuthoringDuration;
+        m_AuthoringClip.loop = false;
+        m_AuthoringClip.layer = AnimationClip::Layer::Base;
+
+        const UrdfJoint *selectedJoint =
+            m_Robot->jointForChildLink(m_SelectedLink);
+        for (const auto &[jointName, joint] : m_Robot->data().joints)
+        {
+            if (joint.type == UrdfJoint::Type::FIXED ||
+                (m_AnimateSelectedOnly &&
+                 (!selectedJoint || selectedJoint->name != jointName)))
+                continue;
+
+            auto trackIt = std::find_if(
+                m_AuthoringClip.tracks.begin(),
+                m_AuthoringClip.tracks.end(),
+                [&jointName](const JointAnimationTrack &track)
+                { return track.jointName == jointName; });
+            if (trackIt == m_AuthoringClip.tracks.end())
+            {
+                m_AuthoringClip.tracks.push_back({jointName, {}});
+                trackIt = std::prev(m_AuthoringClip.tracks.end());
+            }
+
+            auto keyframeIt = std::find_if(
+                trackIt->keyframes.begin(),
+                trackIt->keyframes.end(),
+                [this](const JointKeyframe &keyframe)
+                { return keyframe.time == m_AuthoringTime; });
+            const JointKeyframe keyframe{
+                m_AuthoringTime,
+                m_Robot->jointPosition(jointName)};
+            if (keyframeIt == trackIt->keyframes.end())
+                trackIt->keyframes.push_back(keyframe);
+            else
+                *keyframeIt = keyframe;
+            std::sort(
+                trackIt->keyframes.begin(),
+                trackIt->keyframes.end(),
+                [](const JointKeyframe &left, const JointKeyframe &right)
+                { return left.time < right.time; });
+        }
+
+        m_AnimationStatus = "Captured authoring pose at " +
+                            std::to_string(m_AuthoringTime) + " s";
+    }
+
+    bool Editor::saveAuthoringAnimation()
+    {
+        if (m_AuthoringClip.tracks.empty())
+        {
+            m_AnimationStatus = "Capture a keyframe before saving";
+            return false;
+        }
+
+        if (m_AuthoringName.empty() ||
+            m_AuthoringName.find_first_not_of(
+                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") !=
+                std::string::npos)
+        {
+            m_AnimationStatus =
+                "Animation name may contain only letters, numbers, '_' and '-'";
+            return false;
+        }
+
+        const std::filesystem::path path =
+            std::filesystem::path("resources") /
+            "animations" /
+            (m_AuthoringName + ".json");
+        std::ofstream file(path);
+        if (!file)
+        {
+            m_AnimationStatus = "Could not save " + path.string();
+            return false;
+        }
+
+        file << "{\n"
+             << "  \"name\": \"" << m_AuthoringName << "\",\n"
+             << "  \"duration\": " << m_AuthoringDuration << ",\n"
+             << "  \"loop\": false,\n"
+             << "  \"tracks\": [\n";
+        for (std::size_t trackIndex = 0;
+             trackIndex < m_AuthoringClip.tracks.size();
+             ++trackIndex)
+        {
+            const JointAnimationTrack &track =
+                m_AuthoringClip.tracks[trackIndex];
+            file << "    {\n"
+                 << "      \"joint\": \"" << track.jointName << "\",\n"
+                 << "      \"keyframes\": [\n";
+            for (std::size_t keyframeIndex = 0;
+                 keyframeIndex < track.keyframes.size();
+                 ++keyframeIndex)
+            {
+                const JointKeyframe &keyframe =
+                    track.keyframes[keyframeIndex];
+                file << "        { \"time\": " << keyframe.time
+                     << ", \"position\": " << keyframe.position << " }"
+                     << (keyframeIndex + 1 == track.keyframes.size() ? "\n" : ",\n");
+            }
+            file << "      ]\n"
+                 << "    }"
+                 << (trackIndex + 1 == m_AuthoringClip.tracks.size() ? "\n" : ",\n");
+        }
+        file << "  ]\n}\n";
+        if (!file)
+        {
+            m_AnimationStatus = "Failed while writing " + path.string();
+            return false;
+        }
+
+        m_AnimationStatus = "Saved " + path.string();
+        return true;
+    }
+
+    void Editor::previewAnimation(const AnimationClip &clip)
+    {
+        if (!m_Robot || !m_Robot->isLoaded())
+        {
+            m_AnimationStatus = "Cannot preview without a loaded robot";
+            return;
+        }
+
+        m_AnimationMixer.setClip(clip, *m_Robot);
+        m_AnimationDuration = clip.duration;
+        m_AnimationTime = 0.0f;
+        m_SimulationRunning = true;
+        m_AnimationStatus = "Previewing " + clip.name;
+    }
+
     void Editor::refreshDemoAnimation()
     {
         if (!m_Robot || !m_Robot->isLoaded())
@@ -760,13 +920,47 @@ namespace Mara
         setupDockspace();
 
         drawToolbar();
-        drawScene();
-        drawViewport();
-        drawInspector();
-        drawMotion();
-        drawConsole();
-        drawPosePanel();
-        drawTelemetry();
+        if (m_SimulationWorkspace)
+        {
+            drawSimulationWorkspace();
+        }
+        else
+        {
+            drawScene();
+            drawViewport();
+            drawInspector();
+            drawMotion();
+            drawConsole();
+            drawPosePanel();
+            drawTelemetry();
+            drawMapPanel();
+        }
+        if (m_ShowWorkspaceChooser)
+        {
+            ImGui::OpenPopup("Choose startup workspace");
+            if (ImGui::BeginPopupModal(
+                    "Choose startup workspace",
+                    nullptr,
+                    ImGuiWindowFlags_AlwaysAutoResize))
+            {
+                ImGui::TextUnformatted("Select a workspace to open.");
+                ImGui::Spacing();
+                if (ImGui::Button("Animation workspace", ImVec2(190.0f, 0.0f)))
+                {
+                    m_SimulationWorkspace = false;
+                    m_ShowWorkspaceChooser = false;
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Simulation workspace", ImVec2(190.0f, 0.0f)))
+                {
+                    enterSimulationWorkspace();
+                    m_ShowWorkspaceChooser = false;
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::EndPopup();
+            }
+        }
     }
 
     void Editor::beginSceneRender(int width, int height)
@@ -826,6 +1020,14 @@ namespace Mara
 
         if (ImGui::BeginMenu("View"))
         {
+            if (ImGui::MenuItem("Animation workspace", nullptr, !m_SimulationWorkspace))
+            {
+                m_SimulationWorkspace = false;
+                m_ShowMap = false;
+            }
+            if (ImGui::MenuItem("Simulation workspace", nullptr, m_SimulationWorkspace))
+                enterSimulationWorkspace();
+            ImGui::Separator();
             ImGui::MenuItem("Grid", nullptr, &m_ShowGrid);
             ImGui::MenuItem("Sensor visualization", nullptr, &m_ShowSensors);
             ImGui::MenuItem("Console", nullptr, &m_ShowConsole);
@@ -836,6 +1038,8 @@ namespace Mara
                 nullptr,
                 &m_ShowAnimationPanel);
             ImGui::MenuItem("Robot telemetry", nullptr, &m_ShowTelemetry);
+            if (ImGui::MenuItem("Depth map (Simulation)", nullptr, false))
+                enterSimulationWorkspace();
             ImGui::EndMenu();
         }
 
@@ -862,6 +1066,487 @@ namespace Mara
         drawStatusBadge("SAFE", ImVec4(0.15f, 0.58f, 0.36f, 1.0f));
 
         ImGui::EndMainMenuBar();
+    }
+
+    void Editor::enterSimulationWorkspace()
+    {
+        m_SimulationWorkspace = true;
+        m_ShowMap = false;
+        if (m_TestEnvironmentGenerated)
+            return;
+
+        resetTestEnvironment();
+    }
+
+    void Editor::resetTestEnvironment()
+    {
+        m_SimulationMap.clear();
+        m_SimulationMap.addBoxObstacle({-6.0f, 0.0f, -6.0f}, {6.0f, 0.5f, -5.5f});
+        m_SimulationMap.addBoxObstacle({-6.0f, 0.0f, 5.5f}, {6.0f, 0.5f, 6.0f});
+        m_SimulationMap.addBoxObstacle({-6.0f, 0.0f, -6.0f}, {-5.5f, 0.5f, 6.0f});
+        m_SimulationMap.addBoxObstacle({5.5f, 0.0f, -6.0f}, {6.0f, 0.5f, 6.0f});
+        m_SimulationMap.addBoxObstacle({-3.5f, 0.0f, -3.0f}, {-2.5f, 1.5f, 1.5f});
+        m_SimulationMap.addBoxObstacle({0.0f, 0.0f, -1.0f}, {3.0f, 1.0f, 0.0f});
+        m_SimulationMap.addBoxObstacle({-1.0f, 0.0f, 2.0f}, {0.0f, 2.0f, 4.5f});
+        m_SimulationMap.addBoxObstacle({2.5f, 0.0f, 1.5f}, {4.5f, 1.25f, 2.25f});
+        m_SimulationMap.addBoxObstacle({-4.5f, 0.0f, 2.25f}, {-2.5f, 0.9f, 3.0f});
+        m_SimulationMap.addBoxObstacle({1.0f, 0.0f, 3.75f}, {2.0f, 1.6f, 4.5f});
+        m_SimulationMap.addBoxObstacle({3.75f, 0.0f, -4.5f}, {4.75f, 0.75f, -2.0f});
+        m_SimulationMap.addBoxObstacle({-1.5f, 0.0f, -5.0f}, {0.0f, 1.2f, -4.0f});
+        m_SimulationMap.addBoxObstacle({-5.0f, 0.0f, -1.5f}, {-4.0f, 0.65f, -0.5f});
+        m_SimulationMap.addBoxObstacle({3.5f, 0.0f, -0.75f}, {4.5f, 2.2f, 0.0f});
+        m_SimulationMap.addBoxObstacle({-2.0f, 0.0f, 4.0f}, {-0.75f, 0.55f, 5.0f});
+        m_SimulationMap.addBoxObstacle({0.75f, 0.0f, 1.75f}, {1.5f, 2.4f, 2.5f});
+        m_SimulationMap.addBoxObstacle({-4.5f, 0.0f, 4.0f}, {-3.5f, 1.8f, 4.75f});
+        m_SimulationMap.addBoxObstacle({2.25f, 0.0f, -3.0f}, {3.0f, 0.5f, -1.5f});
+        m_SimulationMap.addBoxObstacle({-0.5f, 0.0f, -2.5f}, {0.5f, 0.75f, -1.75f});
+        m_SimulationMap.addBoxObstacle({-3.0f, 0.0f, 0.75f}, {-1.75f, 1.1f, 1.5f});
+        m_SimulatedRobotPosition = {-4.0f, 0.25f, -4.0f};
+        m_SimulatedRobotYaw = 0.0f;
+        m_SimulationStatus = "Test environment generated";
+        m_TestEnvironmentGenerated = true;
+    }
+
+    void Editor::updateSimulation(float deltaTime)
+    {
+        if (!m_SimulationWorkspace || m_MapNavigationMode)
+            return;
+
+        glm::vec3 direction(0.0f);
+        if (MaraGl::Input::IsKeyDown(GLFW_KEY_LEFT) || MaraGl::Input::IsKeyDown(GLFW_KEY_A))
+            direction.x -= 1.0f;
+        if (MaraGl::Input::IsKeyDown(GLFW_KEY_RIGHT) || MaraGl::Input::IsKeyDown(GLFW_KEY_D))
+            direction.x += 1.0f;
+        if (MaraGl::Input::IsKeyDown(GLFW_KEY_UP) || MaraGl::Input::IsKeyDown(GLFW_KEY_W))
+            direction.z -= 1.0f;
+        if (MaraGl::Input::IsKeyDown(GLFW_KEY_DOWN) || MaraGl::Input::IsKeyDown(GLFW_KEY_S))
+            direction.z += 1.0f;
+        if (glm::length(direction) <= 0.0f)
+            return;
+
+        direction = glm::normalize(direction);
+        m_SimulatedRobotYaw = std::atan2(direction.x, direction.z);
+        const glm::vec3 candidate =
+            m_SimulatedRobotPosition + direction * m_SimulationSpeed * deltaTime;
+        const glm::vec3 halfExtents(0.25f, 0.25f, 0.25f);
+        if (m_SimulationMap.intersectsBox(candidate - halfExtents, candidate + halfExtents))
+            m_SimulationStatus = "Collision blocked";
+        else
+        {
+            m_SimulatedRobotPosition = candidate;
+            m_SimulationStatus = "Moving";
+        }
+    }
+
+    void Editor::drawSimulationWorkspace()
+    {
+        ImGui::SetNextWindowPos(ImGui::GetMainViewport()->WorkPos);
+        ImGui::SetNextWindowSize(ImGui::GetMainViewport()->WorkSize);
+        ImGui::Begin(
+            "Simulation",
+            nullptr,
+            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar);
+        drawPanelHeader("[S]", "SIMULATION WORKSPACE", "DEPTH MAP + COLLISION");
+
+        const RosTelemetrySnapshot *depthSnapshot = nullptr;
+        if (m_TelemetryClient.hasData() &&
+            m_TelemetryClient.snapshot().depthSequence != 0)
+            depthSnapshot = &m_TelemetryClient.snapshot();
+
+        const float contentHeight = ImGui::GetContentRegionAvail().y;
+        ImGui::BeginChild("SimulationControls", ImVec2(240.0f, contentHeight), true);
+        ImGui::TextColored(kViewportAccent, "SIMULATION CONTROLS");
+        ImGui::Separator();
+        ImGui::TextDisabled("Interaction mode");
+        if (ImGui::Button(
+                m_MapNavigationMode ? "Drive robot" : "Navigate map",
+                ImVec2(-1.0f, 0.0f)))
+            m_MapNavigationMode = !m_MapNavigationMode;
+        ImGui::TextWrapped(
+            m_MapNavigationMode
+                ? "Map navigation is active. Mouse input controls the 3D camera."
+                : "Robot drive is active. WASD and arrow keys move the robot.");
+        ImGui::Spacing();
+        if (ImGui::Button("Reset robot", ImVec2(-1.0f, 0.0f)))
+        {
+            m_SimulatedRobotPosition = {-4.0f, 0.25f, -4.0f};
+            m_SimulatedRobotYaw = 0.0f;
+        }
+        ImGui::SetNextItemWidth(-1.0f);
+        ImGui::SliderFloat("Speed", &m_SimulationSpeed, 0.25f, 5.0f, "%.2f m/s");
+        if (ImGui::Button("Clear live map", ImVec2(-1.0f, 0.0f)))
+        {
+            m_OccupancyMap.clear();
+            m_LastMappedDepthSequence = 0;
+        }
+        if (ImGui::Button("Restore test obstacles", ImVec2(-1.0f, 0.0f)))
+            resetTestEnvironment();
+        ImGui::Separator();
+        ImGui::TextColored(kViewportAccent, "LIVE SENSOR BRIDGE");
+        const bool bridgeLive =
+            m_TelemetryClient.connected() && !m_TelemetryClient.stale();
+        if (ImGui::Button(
+                m_TelemetryClient.connected() ? "Reconnect bridge" : "Connect bridge",
+                ImVec2(-1.0f, 0.0f)))
+            m_TelemetryClient.connect(
+                m_TelemetryClient.host(),
+                m_TelemetryClient.port());
+        if (bridgeLive)
+            ImGui::TextColored(
+                ImVec4(0.20f, 0.70f, 0.45f, 1.0f),
+                "Depth stream LIVE");
+        else
+            ImGui::TextColored(
+                ImVec4(0.85f, 0.55f, 0.25f, 1.0f),
+                "Waiting for depth bridge");
+        if (depthSnapshot)
+            ImGui::Text(
+                "Depth: %d x %d | frame %llu",
+                depthSnapshot->depthWidth,
+                depthSnapshot->depthHeight,
+                static_cast<unsigned long long>(depthSnapshot->depthSequence));
+        ImGui::Separator();
+        ImGui::Text("Robot position");
+        ImGui::Text("(%.2f, %.2f, %.2f)",
+                    m_SimulatedRobotPosition.x,
+                    m_SimulatedRobotPosition.y,
+                    m_SimulatedRobotPosition.z);
+        ImGui::Text("Live voxels: %zu", m_OccupancyMap.occupiedCount());
+        ImGui::Text("Depth frame: %llu",
+                    static_cast<unsigned long long>(m_LastMappedDepthSequence));
+        ImGui::TextColored(
+            m_SimulationStatus == "Collision blocked"
+                ? ImVec4(0.85f, 0.30f, 0.20f, 1.0f)
+                : ImVec4(0.20f, 0.70f, 0.45f, 1.0f),
+            "%s",
+            m_SimulationStatus.c_str());
+        ImGui::Separator();
+        ImGui::TextWrapped(
+            "3D: right drag orbit, middle drag pan, wheel or +/- zoom. "
+            "Orange voxels are test obstacles; blue voxels are live depth data. "
+            "Live depth is integrated at the head scanner origin.");
+        ImGui::Separator();
+        ImGui::TextDisabled("3D view");
+        if (ImGui::Button("Perspective"))
+        {
+            m_MapViewPreset = 0;
+            m_MapOrbitYaw = 0.65f;
+            m_MapOrbitPitch = 0.55f;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Top"))
+        {
+            m_MapViewPreset = 1;
+            m_MapOrbitYaw = 0.0f;
+            m_MapOrbitPitch = -1.35f;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Side"))
+        {
+            m_MapViewPreset = 2;
+            m_MapOrbitYaw = 1.5708f;
+            m_MapOrbitPitch = 0.0f;
+        }
+        ImGui::EndChild();
+
+        ImGui::SameLine();
+        ImGui::BeginChild("SimulationViews", ImVec2(0.0f, contentHeight), false);
+        const float paneWidth = (ImGui::GetContentRegionAvail().x - 12.0f) * 0.5f;
+        const float paneHeight = ImGui::GetContentRegionAvail().y;
+
+        ImGui::BeginChild("Map3DPane", ImVec2(paneWidth, paneHeight), true);
+        ImGui::TextColored(kViewportAccent, "3D VISUALIZATION");
+        ImGui::SameLine();
+        ImGui::TextDisabled("polygon map");
+        const ImVec2 viewMin = ImGui::GetCursorScreenPos();
+        const ImVec2 viewSize(
+            ImGui::GetContentRegionAvail().x,
+            glm::max(240.0f, ImGui::GetContentRegionAvail().y));
+        ImGui::InvisibleButton("Map3DCanvas", viewSize);
+        const ImVec2 viewMax(viewMin.x + viewSize.x, viewMin.y + viewSize.y);
+        ImDrawList *drawList = ImGui::GetWindowDrawList();
+        drawList->AddRectFilled(viewMin, viewMax, IM_COL32(14, 22, 32, 255));
+        const ImVec2 mouseDelta = ImGui::GetIO().MouseDelta;
+        if (ImGui::IsItemActive() || ImGui::IsItemHovered())
+        {
+            if (m_MapNavigationMode && ImGui::GetIO().MouseDown[1])
+            {
+                m_MapOrbitYaw += mouseDelta.x * 0.008f;
+                m_MapOrbitPitch = glm::clamp(
+                    m_MapOrbitPitch + mouseDelta.y * 0.008f,
+                    -1.35f,
+                    1.35f);
+            }
+            if (m_MapNavigationMode && ImGui::GetIO().MouseDown[2])
+            {
+                m_MapPan.x -= mouseDelta.x * 0.015f / m_MapZoom;
+                m_MapPan.y += mouseDelta.y * 0.015f / m_MapZoom;
+            }
+            if (m_MapNavigationMode)
+                m_MapZoom = glm::clamp(
+                    m_MapZoom + ImGui::GetIO().MouseWheel * 0.12f,
+                    0.35f,
+                    4.0f);
+            if (m_MapNavigationMode &&
+                (MaraGl::Input::IsKeyDown(GLFW_KEY_EQUAL) ||
+                 MaraGl::Input::IsKeyDown(GLFW_KEY_KP_ADD)))
+                m_MapZoom = glm::min(4.0f, m_MapZoom + 0.02f);
+            if (m_MapNavigationMode &&
+                (MaraGl::Input::IsKeyDown(GLFW_KEY_MINUS) ||
+                 MaraGl::Input::IsKeyDown(GLFW_KEY_KP_SUBTRACT)))
+                m_MapZoom = glm::max(0.35f, m_MapZoom - 0.02f);
+        }
+        const ImVec2 viewCenter(
+            viewMin.x + viewSize.x * 0.5f + m_MapPan.x * 20.0f,
+            viewMin.y + viewSize.y * 0.52f + m_MapPan.y * 20.0f);
+        const float projectionScale = glm::min(viewSize.x, viewSize.y) * 0.80f * m_MapZoom;
+        const float cosYaw = std::cos(m_MapOrbitYaw);
+        const float sinYaw = std::sin(m_MapOrbitYaw);
+        const float cosPitch = std::cos(m_MapOrbitPitch);
+        const float sinPitch = std::sin(m_MapOrbitPitch);
+        const auto project3d = [this,
+                                viewCenter,
+                                projectionScale,
+                                cosYaw,
+                                sinYaw,
+                                cosPitch,
+                                sinPitch](const glm::vec3 &position)
+        {
+            const glm::vec3 translated = position - glm::vec3(m_MapPan.x, 0.0f, m_MapPan.y);
+            if (m_MapViewPreset == 1)
+                return ImVec2(
+                    viewCenter.x + translated.x * projectionScale * 0.08f,
+                    viewCenter.y + translated.z * projectionScale * 0.08f);
+            if (m_MapViewPreset == 2)
+                return ImVec2(
+                    viewCenter.x + translated.z * projectionScale * 0.08f,
+                    viewCenter.y - translated.y * projectionScale * 0.08f);
+            const float yawX = translated.x * cosYaw - translated.z * sinYaw;
+            const float yawZ = translated.x * sinYaw + translated.z * cosYaw + 11.0f;
+            const float cameraY = translated.y * cosPitch - yawZ * sinPitch;
+            const float depth = translated.y * sinPitch + yawZ * cosPitch;
+            const float safeDepth = glm::max(1.0f, depth);
+            return ImVec2(
+                viewCenter.x + yawX * projectionScale / safeDepth,
+                viewCenter.y - cameraY * projectionScale / safeDepth);
+        };
+        const auto drawPolygon = [drawList, &viewMin, &viewMax](
+                                     const ImVec2 &point,
+                                     float radius,
+                                     ImU32 color)
+        {
+            if (point.x < viewMin.x || point.x > viewMax.x ||
+                point.y < viewMin.y || point.y > viewMax.y)
+                return;
+            const ImVec2 polygon[6] = {
+                {point.x - radius, point.y},
+                {point.x - radius * 0.5f, point.y - radius},
+                {point.x + radius * 0.5f, point.y - radius},
+                {point.x + radius, point.y},
+                {point.x + radius * 0.5f, point.y + radius},
+                {point.x - radius * 0.5f, point.y + radius}};
+            drawList->AddConvexPolyFilled(polygon, 6, color);
+        };
+        constexpr std::size_t kMaxVisibleSimulationVoxels = 12000;
+        constexpr std::size_t kMaxVisibleLiveVoxels = 12000;
+        std::size_t simulationVoxelCount = 0;
+        for (const OccupiedVoxel &voxel : m_SimulationMap.voxels())
+        {
+            if (simulationVoxelCount++ >= kMaxVisibleSimulationVoxels)
+                break;
+            drawPolygon(
+                project3d(glm::vec3(voxel.coordinate) * m_SimulationMap.voxelSize()),
+                3.5f,
+                IM_COL32(245, 125, 55, 235));
+        }
+        std::size_t liveVoxelCount = 0;
+        for (const OccupiedVoxel &voxel : m_OccupancyMap.voxels())
+        {
+            if (liveVoxelCount++ >= kMaxVisibleLiveVoxels)
+                break;
+            drawPolygon(
+                project3d(glm::vec3(voxel.coordinate) * m_OccupancyMap.voxelSize()),
+                3.5f,
+                IM_COL32(80, 175, 255, 235));
+        }
+        const glm::vec3 scannerPosition = m_SimulatedRobotPosition;
+        const ImVec2 sensorPoint = project3d(scannerPosition);
+        constexpr float kScannerHalfAngle = 1.10f;
+        constexpr int kScannerRayCount = 13;
+        float scannerRange = 2.0f;
+        if (depthSnapshot && !m_TelemetryClient.stale())
+        {
+            std::uint16_t nearestDepth = 0;
+            for (const std::uint16_t depth : depthSnapshot->depth)
+            {
+                if (depth == 0)
+                    continue;
+                if (nearestDepth == 0 || depth < nearestDepth)
+                    nearestDepth = depth;
+            }
+            if (nearestDepth != 0)
+                scannerRange = glm::clamp(
+                    static_cast<float>(nearestDepth) * 0.001f,
+                    0.5f,
+                    6.0f);
+        }
+        ImVec2 previousScanPoint = sensorPoint;
+        for (int ray = 0; ray < kScannerRayCount; ++ray)
+        {
+            const float angle =
+                -kScannerHalfAngle +
+                (2.0f * kScannerHalfAngle * static_cast<float>(ray)) /
+                    static_cast<float>(kScannerRayCount - 1);
+            const float worldAngle = m_SimulatedRobotYaw + angle;
+            const ImVec2 scanPoint = project3d({
+                scannerPosition.x + scannerRange * std::sin(worldAngle),
+                scannerPosition.y,
+                scannerPosition.z + scannerRange * std::cos(worldAngle)});
+            drawList->AddLine(
+                sensorPoint,
+                scanPoint,
+                IM_COL32(255, 220, 80, ray == 0 || ray == kScannerRayCount - 1 ? 230 : 85),
+                ray == 0 || ray == kScannerRayCount - 1 ? 2.0f : 1.0f);
+            if (ray > 0)
+                drawList->AddLine(
+                    previousScanPoint,
+                    scanPoint,
+                    IM_COL32(255, 220, 80, 120),
+                    1.0f);
+            previousScanPoint = scanPoint;
+        }
+        drawList->AddCircleFilled(sensorPoint, 6.0f, IM_COL32(255, 220, 80, 255));
+        drawList->AddText(
+            ImVec2(viewMin.x + 10.0f, viewMin.y + 10.0f),
+            IM_COL32(220, 230, 240, 255),
+            "RMB orbit | MMB pan | wheel zoom | yellow fan: head scanner FOV");
+        ImGui::EndChild();
+
+        ImGui::SameLine();
+        ImGui::BeginChild(
+            "Map2DPane",
+            ImVec2(0.0f, paneHeight),
+            true,
+            ImGuiWindowFlags_NoScrollbar);
+        ImGui::TextColored(kViewportAccent, "2D TOP VIEW");
+        ImGui::SameLine();
+        ImGui::TextDisabled("collision plane");
+        const ImVec2 topMin = ImGui::GetCursorScreenPos();
+        const ImVec2 topSize = ImGui::GetContentRegionAvail();
+        ImGui::InvisibleButton(
+            "Map2DCanvas",
+            ImVec2(glm::max(1.0f, topSize.x), glm::max(1.0f, topSize.y)));
+        const ImVec2 topMax(
+            topMin.x + topSize.x,
+            topMin.y + topSize.y);
+        ImDrawList *topDrawList = ImGui::GetWindowDrawList();
+        topDrawList->AddRectFilled(topMin, topMax, IM_COL32(14, 22, 32, 255));
+        const ImVec2 topCenter(
+            topMin.x + topSize.x * 0.5f,
+            topMin.y + topSize.y * 0.5f);
+        const float mapExtent = 7.0f;
+        const float topScale = glm::max(
+            1.0f,
+            glm::min(topSize.x, topSize.y) / (mapExtent * 2.0f));
+        const auto project2d = [topCenter, topScale](const glm::vec3 &position)
+        {
+            return ImVec2(
+                topCenter.x + position.x * topScale,
+                topCenter.y + position.z * topScale);
+        };
+        const auto drawTopPolygon = [topDrawList, &topMin, &topMax](
+                                        const ImVec2 &point,
+                                        ImU32 color)
+        {
+            if (point.x < topMin.x || point.x > topMax.x ||
+                point.y < topMin.y || point.y > topMax.y)
+                return;
+            topDrawList->AddRectFilled(
+                ImVec2(point.x - 2.0f, point.y - 2.0f),
+                ImVec2(point.x + 2.0f, point.y + 2.0f),
+                color);
+        };
+        std::size_t topSimulationVoxelCount = 0;
+        for (const OccupiedVoxel &voxel : m_SimulationMap.voxels())
+        {
+            if (topSimulationVoxelCount++ >= kMaxVisibleSimulationVoxels)
+                break;
+            drawTopPolygon(
+                project2d(glm::vec3(voxel.coordinate) * m_SimulationMap.voxelSize()),
+                IM_COL32(255, 105, 145, 235));
+        }
+        std::size_t topLiveVoxelCount = 0;
+        for (const OccupiedVoxel &voxel : m_OccupancyMap.voxels())
+        {
+            if (topLiveVoxelCount++ >= kMaxVisibleLiveVoxels)
+                break;
+            drawTopPolygon(
+                project2d(glm::vec3(voxel.coordinate) * m_OccupancyMap.voxelSize()),
+                IM_COL32(75, 235, 170, 235));
+        }
+        topDrawList->AddRect(
+            ImVec2(topCenter.x - 6.0f * topScale, topCenter.y - 6.0f * topScale),
+            ImVec2(topCenter.x + 6.0f * topScale, topCenter.y + 6.0f * topScale),
+            IM_COL32(90, 105, 125, 180));
+        topDrawList->AddLine(
+            ImVec2(topCenter.x - mapExtent * topScale, topCenter.y),
+            ImVec2(topCenter.x + mapExtent * topScale, topCenter.y),
+            IM_COL32(90, 105, 125, 120));
+        topDrawList->AddLine(
+            ImVec2(topCenter.x, topCenter.y - mapExtent * topScale),
+            ImVec2(topCenter.x, topCenter.y + mapExtent * topScale),
+            IM_COL32(90, 105, 125, 120));
+        const ImVec2 robot(
+            topCenter.x + m_SimulatedRobotPosition.x * topScale,
+            topCenter.y + m_SimulatedRobotPosition.z * topScale);
+        topDrawList->AddCircleFilled(robot, 9.0f, IM_COL32(70, 220, 150, 255));
+        const glm::vec3 topScannerPosition = m_SimulatedRobotPosition;
+        const ImVec2 scannerOrigin = project2d(topScannerPosition);
+        ImVec2 previousTopScanPoint = scannerOrigin;
+        for (int ray = 0; ray < 13; ++ray)
+        {
+            const float angle =
+                -1.10f +
+                (2.20f * static_cast<float>(ray)) / 12.0f;
+            const float worldAngle = m_SimulatedRobotYaw + angle;
+            const ImVec2 scanPoint = project2d({
+                topScannerPosition.x + 2.0f * std::sin(worldAngle),
+                topScannerPosition.y,
+                topScannerPosition.z + 2.0f * std::cos(worldAngle)});
+            topDrawList->AddLine(
+                scannerOrigin,
+                scanPoint,
+                IM_COL32(255, 220, 80, ray == 0 || ray == 12 ? 230 : 85),
+                ray == 0 || ray == 12 ? 2.0f : 1.0f);
+            if (ray > 0)
+                topDrawList->AddLine(
+                    previousTopScanPoint,
+                    scanPoint,
+                    IM_COL32(255, 220, 80, 120),
+                    1.0f);
+            previousTopScanPoint = scanPoint;
+        }
+        topDrawList->AddCircleFilled(
+            scannerOrigin,
+            5.0f,
+            IM_COL32(255, 220, 80, 255));
+        drawList->AddText(
+            ImVec2(topMin.x + 10.0f, topMin.y + 10.0f),
+            IM_COL32(220, 230, 240, 255),
+            "pink obstacles | green live scan | blue robot");
+        char mapCountLabel[64] = {};
+        std::snprintf(
+            mapCountLabel,
+            sizeof(mapCountLabel),
+            "Map data: %zu voxels",
+            m_SimulationMap.occupiedCount() + m_OccupancyMap.occupiedCount());
+        drawList->AddText(
+            ImVec2(topMin.x + 10.0f, topMax.y - 24.0f),
+            IM_COL32(170, 185, 200, 255),
+            mapCountLabel);
+        ImGui::EndChild();
+        ImGui::EndChild();
+        ImGui::End();
     }
 
     void Editor::drawScene()
@@ -988,167 +1673,255 @@ namespace Mara
             m_RequestedSceneWidth = width;
             m_RequestedSceneHeight = height;
 
-            ImGui::Image(
-                static_cast<ImTextureID>(
-                    static_cast<uintptr_t>(
-                        m_SceneFramebuffer.getColorTexture())),
-                viewportSize,
-                ImVec2(0, 1),
-                ImVec2(1, 0));
-
-            const ImVec2 sceneViewportMin = ImGui::GetItemRectMin();
-            const ImVec2 sceneViewportMax = ImGui::GetItemRectMax();
-            m_ViewportHovered = ImGui::IsItemHovered();
-
-            if (m_Robot && m_Robot->isLoaded() &&
-                !m_SelectedLink.empty() &&
-                m_Robot->jointForChildLink(m_SelectedLink))
+            if (m_ShowMap)
             {
-                ImGuizmo::SetDrawlist();
-                ImGuizmo::Enable(true);
-                ImGuizmo::SetOrthographic(false);
-                ImGuizmo::SetRect(
-                    ImGui::GetItemRectMin().x,
-                    ImGui::GetItemRectMin().y,
-                    viewportSize.x,
-                    viewportSize.y);
-
-                glm::mat4 jointFrame =
-                    m_Robot->jointFrameWorldTransform(m_SelectedLink, m_RobotTransform);
-                ImGuizmo::Manipulate(
-                    glm::value_ptr(m_GizmoView),
-                    glm::value_ptr(m_GizmoProjection),
-                    ImGuizmo::ROTATE | ImGuizmo::TRANSLATE,
-                    ImGuizmo::LOCAL,
-                    glm::value_ptr(jointFrame));
-                if (ImGuizmo::IsUsing())
-                {
-                    m_Robot->setJointFrameWorldTransform(
-                        m_SelectedLink,
-                        m_RobotTransform,
-                        jointFrame);
-                    m_SimulationRunning = false;
-                }
+                ImGui::BeginChild("MapModeNotice", viewportSize, true);
+                ImGui::TextColored(kViewportAccent, "MAP MODE");
+                ImGui::TextDisabled(
+                    "Detailed robot rendering is paused while the depth map is active.");
+                ImGui::EndChild();
+                m_ViewportHovered = false;
             }
-
-            if (m_ShowSensorOverlays)
+            else
             {
-                const ImVec2 viewportMin = sceneViewportMin;
-                const ImVec2 viewportMax = sceneViewportMax;
-                const float cardWidth = glm::min(220.0f, viewportSize.x * 0.30f);
-                const float cardHeight = cardWidth * 0.64f;
-                const float cardGap = 8.0f;
-                const float right = viewportMax.x - 14.0f;
-                const float top = viewportMin.y + 14.0f;
-                ImDrawList *drawList = ImGui::GetWindowDrawList();
+                ImGui::Image(
+                    static_cast<ImTextureID>(
+                        static_cast<uintptr_t>(
+                            m_SceneFramebuffer.getColorTexture())),
+                    viewportSize,
+                    ImVec2(0, 1),
+                    ImVec2(1, 0));
 
-                const auto drawSensorCard = [drawList,
-                                             cardWidth,
-                                             cardHeight,
-                                             right,
-                                             cardGap,
-                                             top,
-                                             this](
-                                                const char *title,
-                                                ImTextureID texture,
-                                                int imageWidth,
-                                                int imageHeight,
-                                                bool available,
-                                                float y)
+                const ImVec2 sceneViewportMin = ImGui::GetItemRectMin();
+                const ImVec2 sceneViewportMax = ImGui::GetItemRectMax();
+                m_ViewportHovered = ImGui::IsItemHovered();
+
+                if (m_Robot && m_Robot->isLoaded() &&
+                    !m_SelectedLink.empty() &&
+                    m_Robot->jointForChildLink(m_SelectedLink))
                 {
-                    const ImVec2 cardMin(right - cardWidth, y);
-                    const ImVec2 cardMax(right, y + cardHeight);
-                    drawList->AddRectFilled(cardMin, cardMax, kViewportCardBackground, 5.0f);
-                    drawList->AddRect(
-                        cardMin,
-                        cardMax,
-                        kViewportCardBorder,
-                        5.0f);
-                    drawList->AddText(
-                        ImVec2(cardMin.x + 9.0f, cardMin.y + 6.0f),
-                        kViewportText,
-                        title);
-                    drawList->AddText(
-                        ImVec2(cardMax.x - 28.0f, cardMin.y + 6.0f),
-                        kViewportMutedText,
-                        "[+]");
+                    ImGuizmo::SetDrawlist();
+                    ImGuizmo::Enable(true);
+                    ImGuizmo::SetOrthographic(false);
+                    ImGuizmo::SetRect(
+                        ImGui::GetItemRectMin().x,
+                        ImGui::GetItemRectMin().y,
+                        viewportSize.x,
+                        viewportSize.y);
 
-                    const ImVec2 imageMin(cardMin.x + 7.0f, cardMin.y + 25.0f);
-                    const ImVec2 imageMax(cardMax.x - 7.0f, cardMax.y - 7.0f);
-                    drawList->AddRectFilled(
-                        imageMin,
-                        imageMax,
-                        kViewportImageBackground,
-                        3.0f);
-                    if (available && imageWidth > 0 && imageHeight > 0)
+                    glm::mat4 jointFrame =
+                        m_Robot->jointFrameWorldTransform(m_SelectedLink, m_RobotTransform);
+                    ImGuizmo::Manipulate(
+                        glm::value_ptr(m_GizmoView),
+                        glm::value_ptr(m_GizmoProjection),
+                        ImGuizmo::ROTATE | ImGuizmo::TRANSLATE,
+                        ImGuizmo::LOCAL,
+                        glm::value_ptr(jointFrame));
+                    if (ImGuizmo::IsUsing())
                     {
-                        const float sourceAspect =
-                            static_cast<float>(imageWidth) /
-                            static_cast<float>(imageHeight);
-                        const float canvasAspect =
-                            (imageMax.x - imageMin.x) / (imageMax.y - imageMin.y);
-                        ImVec2 imageSize(
-                            imageMax.x - imageMin.x,
-                            imageMax.y - imageMin.y);
-                        if (sourceAspect > canvasAspect)
-                            imageSize.y = imageSize.x / sourceAspect;
-                        else
-                            imageSize.x = imageSize.y * sourceAspect;
-                        const ImVec2 centeredMin(
-                            imageMin.x + ((imageMax.x - imageMin.x) - imageSize.x) * 0.5f,
-                            imageMin.y + ((imageMax.y - imageMin.y) - imageSize.y) * 0.5f);
-                        drawList->AddImage(
-                            texture,
-                            centeredMin,
-                            ImVec2(centeredMin.x + imageSize.x, centeredMin.y + imageSize.y),
-                            ImVec2(0.0f, 0.0f),
-                            ImVec2(1.0f, 1.0f));
+                        m_Robot->setJointFrameWorldTransform(
+                            m_SelectedLink,
+                            m_RobotTransform,
+                            jointFrame);
+                        m_SimulationRunning = false;
                     }
-                    else
+                }
+
+                if (m_ShowSensorOverlays)
+                {
+                    const ImVec2 viewportMin = sceneViewportMin;
+                    const ImVec2 viewportMax = sceneViewportMax;
+                    const float cardWidth = glm::min(220.0f, viewportSize.x * 0.30f);
+                    const float cardHeight = cardWidth * 0.64f;
+                    const float cardGap = 8.0f;
+                    const float right = viewportMax.x - 14.0f;
+                    const float top = viewportMin.y + 14.0f;
+                    ImDrawList *drawList = ImGui::GetWindowDrawList();
+
+                    const auto drawSensorCard = [drawList,
+                                                 cardWidth,
+                                                 cardHeight,
+                                                 right,
+                                                 cardGap,
+                                                 top,
+                                                 this](
+                                                    const char *title,
+                                                    ImTextureID texture,
+                                                    int imageWidth,
+                                                    int imageHeight,
+                                                    bool available,
+                                                    float y)
                     {
-                        const char *status = m_TelemetryClient.connected()
-                                                 ? "NO SIGNAL"
-                                                 : "DISCONNECTED";
-                        const ImVec2 statusSize = ImGui::CalcTextSize(status);
+                        const ImVec2 cardMin(right - cardWidth, y);
+                        const ImVec2 cardMax(right, y + cardHeight);
+                        drawList->AddRectFilled(cardMin, cardMax, kViewportCardBackground, 5.0f);
+                        drawList->AddRect(
+                            cardMin,
+                            cardMax,
+                            kViewportCardBorder,
+                            5.0f);
                         drawList->AddText(
-                            ImVec2(
-                                imageMin.x + ((imageMax.x - imageMin.x) - statusSize.x) * 0.5f,
-                                imageMin.y + ((imageMax.y - imageMin.y) - statusSize.y) * 0.5f),
+                            ImVec2(cardMin.x + 9.0f, cardMin.y + 6.0f),
+                            kViewportText,
+                            title);
+                        drawList->AddText(
+                            ImVec2(cardMax.x - 28.0f, cardMin.y + 6.0f),
                             kViewportMutedText,
-                            status);
-                    }
+                            "[+]");
 
-                    ImGui::PushID(title);
-                    ImGui::SetCursorScreenPos(cardMin);
-                    if (ImGui::InvisibleButton(
-                            "SensorCard",
-                            ImVec2(cardWidth, cardHeight)))
-                        m_ShowPosePanel = true;
-                    ImGui::PopID();
-                };
+                        const ImVec2 imageMin(cardMin.x + 7.0f, cardMin.y + 25.0f);
+                        const ImVec2 imageMax(cardMax.x - 7.0f, cardMax.y - 7.0f);
+                        drawList->AddRectFilled(
+                            imageMin,
+                            imageMax,
+                            kViewportImageBackground,
+                            3.0f);
+                        if (available && imageWidth > 0 && imageHeight > 0)
+                        {
+                            const float sourceAspect =
+                                static_cast<float>(imageWidth) /
+                                static_cast<float>(imageHeight);
+                            const float canvasAspect =
+                                (imageMax.x - imageMin.x) / (imageMax.y - imageMin.y);
+                            ImVec2 imageSize(
+                                imageMax.x - imageMin.x,
+                                imageMax.y - imageMin.y);
+                            if (sourceAspect > canvasAspect)
+                                imageSize.y = imageSize.x / sourceAspect;
+                            else
+                                imageSize.x = imageSize.y * sourceAspect;
+                            const ImVec2 centeredMin(
+                                imageMin.x + ((imageMax.x - imageMin.x) - imageSize.x) * 0.5f,
+                                imageMin.y + ((imageMax.y - imageMin.y) - imageSize.y) * 0.5f);
+                            drawList->AddImage(
+                                texture,
+                                centeredMin,
+                                ImVec2(centeredMin.x + imageSize.x, centeredMin.y + imageSize.y),
+                                ImVec2(0.0f, 0.0f),
+                                ImVec2(1.0f, 1.0f));
+                        }
+                        else
+                        {
+                            const char *status = m_TelemetryClient.connected()
+                                                     ? "NO SIGNAL"
+                                                     : "DISCONNECTED";
+                            const ImVec2 statusSize = ImGui::CalcTextSize(status);
+                            drawList->AddText(
+                                ImVec2(
+                                    imageMin.x + ((imageMax.x - imageMin.x) - statusSize.x) * 0.5f,
+                                    imageMin.y + ((imageMax.y - imageMin.y) - statusSize.y) * 0.5f),
+                                kViewportMutedText,
+                                status);
+                        }
 
-                const bool sensorLinkLive =
-                    m_TelemetryClient.connected() && !m_TelemetryClient.stale();
-                drawSensorCard(
-                    "RGB CAMERA",
-                    static_cast<ImTextureID>(
-                        static_cast<uintptr_t>(m_RemoteCameraTexture)),
-                    m_RemoteCameraWidth,
-                    m_RemoteCameraHeight,
-                    sensorLinkLive && m_RemoteCameraTexture != 0,
-                    top);
-                drawSensorCard(
-                    "DEPTH",
-                    static_cast<ImTextureID>(
-                        static_cast<uintptr_t>(m_RemoteDepthTexture)),
-                    m_RemoteDepthWidth,
-                    m_RemoteDepthHeight,
-                    sensorLinkLive && m_RemoteDepthTexture != 0,
-                    top + cardHeight + cardGap);
+                        ImGui::PushID(title);
+                        ImGui::SetCursorScreenPos(cardMin);
+                        if (ImGui::InvisibleButton(
+                                "SensorCard",
+                                ImVec2(cardWidth, cardHeight)))
+                            m_ShowPosePanel = true;
+                        ImGui::PopID();
+                    };
+
+                    const bool sensorLinkLive =
+                        m_TelemetryClient.connected() && !m_TelemetryClient.stale();
+                    drawSensorCard(
+                        "RGB CAMERA",
+                        static_cast<ImTextureID>(
+                            static_cast<uintptr_t>(m_RemoteCameraTexture)),
+                        m_RemoteCameraWidth,
+                        m_RemoteCameraHeight,
+                        sensorLinkLive && m_RemoteCameraTexture != 0,
+                        top);
+                    drawSensorCard(
+                        "DEPTH",
+                        static_cast<ImTextureID>(
+                            static_cast<uintptr_t>(m_RemoteDepthTexture)),
+                        m_RemoteDepthWidth,
+                        m_RemoteDepthHeight,
+                        sensorLinkLive && m_RemoteDepthTexture != 0,
+                        top + cardHeight + cardGap);
+                }
             }
         }
         ImGui::End();
         ImGui::PopStyleColor(2);
+    }
+
+    void Editor::drawMapPanel()
+    {
+        if (!m_ShowMap)
+            return;
+
+        ImGui::SetNextWindowSize(ImVec2(560.0f, 520.0f), ImGuiCond_FirstUseEver);
+        ImGui::Begin("Depth map", &m_ShowMap);
+        drawPanelHeader("[M]", "DEPTH MAP", m_MapTopView ? "TOP VIEW" : "3D VIEW");
+        if (ImGui::Button(m_MapTopView ? "Switch to 3D" : "Switch to top view"))
+            m_MapTopView = !m_MapTopView;
+        ImGui::SameLine();
+        if (ImGui::Button("Clear map"))
+            m_OccupancyMap.clear();
+        ImGui::SameLine();
+        ImGui::Text("%zu occupied voxels", m_OccupancyMap.occupiedCount());
+
+        float voxelSize = m_OccupancyMap.voxelSize();
+        if (ImGui::SliderFloat("Voxel size", &voxelSize, 0.02f, 0.25f, "%.2f m"))
+            m_OccupancyMap.setVoxelSize(voxelSize);
+        ImGui::InputText("Map file", m_MapPath, sizeof(m_MapPath));
+        ImGui::SameLine();
+        if (ImGui::Button("Save"))
+        {
+            const std::filesystem::path path(m_MapPath);
+            if (!path.parent_path().empty())
+                std::filesystem::create_directories(path.parent_path());
+            if (!m_OccupancyMap.save(path))
+                m_AnimationStatus = "Map save failed: " + path.string();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Load") && !m_OccupancyMap.load(m_MapPath))
+            m_AnimationStatus = "Map load failed: " + std::string(m_MapPath);
+
+        const ImVec2 canvasMin = ImGui::GetCursorScreenPos();
+        const ImVec2 canvasSize(
+            ImGui::GetContentRegionAvail().x,
+            glm::max(280.0f, ImGui::GetContentRegionAvail().y));
+        ImGui::InvisibleButton("MapCanvas", canvasSize);
+        ImDrawList *drawList = ImGui::GetWindowDrawList();
+        const ImVec2 canvasMax(canvasMin.x + canvasSize.x, canvasMin.y + canvasSize.y);
+        drawList->AddRectFilled(canvasMin, canvasMax, IM_COL32(18, 27, 38, 255));
+        const float scale = glm::min(canvasSize.x, canvasSize.y) * 0.12f;
+        const ImVec2 center(
+            canvasMin.x + canvasSize.x * 0.5f,
+            canvasMin.y + canvasSize.y * 0.55f);
+        for (const OccupiedVoxel &voxel : m_OccupancyMap.voxels())
+        {
+            const float x = static_cast<float>(voxel.coordinate.x) * m_OccupancyMap.voxelSize();
+            const float y = static_cast<float>(voxel.coordinate.y) * m_OccupancyMap.voxelSize();
+            const float z = static_cast<float>(voxel.coordinate.z) * m_OccupancyMap.voxelSize();
+            ImVec2 point;
+            if (m_MapTopView)
+                point = ImVec2(center.x + x * scale, center.y + z * scale);
+            else
+                point = ImVec2(
+                    center.x + (x - z) * scale * 0.7f,
+                    center.y + (x + z) * scale * 0.35f - y * scale);
+            if (point.x >= canvasMin.x && point.x <= canvasMax.x &&
+                point.y >= canvasMin.y && point.y <= canvasMax.y)
+                drawList->AddRectFilled(
+                    ImVec2(point.x - 2.0f, point.y - 2.0f),
+                    ImVec2(point.x + 2.0f, point.y + 2.0f),
+                    IM_COL32(45, 205, 220, 220));
+        }
+        drawList->AddText(
+            ImVec2(canvasMin.x + 10.0f, canvasMin.y + 10.0f),
+            IM_COL32(210, 220, 232, 255),
+            m_MapTopView ? "Top view (X/Z)" : "Projected 3D view");
+        drawList->AddCircleFilled(center, 7.0f, IM_COL32(245, 170, 55, 255));
+        drawList->AddText(
+            ImVec2(center.x + 10.0f, center.y - 7.0f),
+            IM_COL32(245, 220, 170, 255),
+            "robot proxy");
+        ImGui::End();
     }
 
     void Editor::drawInspector()
@@ -1238,6 +2011,104 @@ namespace Mara
             "[J]",
             "MOTION",
             m_SimulationRunning ? "PLAYBACK" : "MANUAL EDITING");
+
+        refreshDemoAnimation();
+
+        if (ImGui::CollapsingHeader(
+                "Loaded animations",
+                ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            const auto &clips = m_AnimationLibrary.catalog().clips();
+            if (clips.empty())
+            {
+                ImGui::TextDisabled("No JSON animations found");
+            }
+            else
+            {
+                for (const AnimationClip &clip : clips)
+                {
+                    ImGui::PushID(clip.name.c_str());
+                    ImGui::Text("%s", clip.name.c_str());
+                    ImGui::SameLine();
+                    ImGui::TextDisabled(
+                        "%.2f s | %zu tracks",
+                        clip.duration,
+                        clip.tracks.size());
+                    ImGui::SameLine(ImGui::GetContentRegionAvail().x - 70.0f);
+                    if (ImGui::SmallButton("Preview"))
+                        previewAnimation(clip);
+                    ImGui::PopID();
+                }
+            }
+        }
+
+        if (ImGui::CollapsingHeader(
+                "Animation authoring",
+                ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            char animationName[128] = {};
+            std::snprintf(
+                animationName,
+                sizeof(animationName),
+                "%s",
+                m_AuthoringName.c_str());
+            if (ImGui::InputText(
+                    "Name",
+                    animationName,
+                    sizeof(animationName)))
+                m_AuthoringName = animationName;
+
+            ImGui::DragFloat(
+                "Duration",
+                &m_AuthoringDuration,
+                0.05f,
+                0.1f,
+                120.0f,
+                "%.2f s");
+            m_AuthoringTime = glm::clamp(
+                m_AuthoringTime,
+                0.0f,
+                m_AuthoringDuration);
+            ImGui::SliderFloat(
+                "Keyframe time",
+                &m_AuthoringTime,
+                0.0f,
+                m_AuthoringDuration,
+                "%.2f s");
+            ImGui::TextDisabled(
+                "%zu tracks captured",
+                m_AuthoringClip.tracks.size());
+
+            if (ImGui::Button("Capture pose"))
+                captureAuthoringKeyframe();
+            ImGui::SameLine();
+            if (ImGui::Button("Preview"))
+            {
+                if (!m_AuthoringClip.tracks.empty() &&
+                    m_Robot &&
+                    m_Robot->isLoaded())
+                {
+                    m_AnimationMixer.setClip(m_AuthoringClip, *m_Robot);
+                    m_AnimationTime = 0.0f;
+                    m_SimulationRunning = true;
+                    m_AnimationStatus = "Previewing " + m_AuthoringName;
+                }
+                else
+                {
+                    m_AnimationStatus =
+                        "Capture at least one pose before previewing";
+                }
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Save JSON"))
+                saveAuthoringAnimation();
+            ImGui::SameLine();
+            if (ImGui::Button("Clear"))
+            {
+                m_AuthoringClip.tracks.clear();
+                m_AnimationStatus = "Authoring keyframes cleared";
+            }
+        }
 
         if (ImGui::CollapsingHeader(
                 "Animation playback",

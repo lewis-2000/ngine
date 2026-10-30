@@ -26,6 +26,11 @@ namespace MaraGl
         return glfwGetKey(s_Window, key) == GLFW_PRESS;
     }
 
+    bool Input::IsKeyDown(int key)
+    {
+        return IsKeyPressed(key);
+    }
+
     bool Input::IsMouseButtonPressed(int button)
     {
         return glfwGetMouseButton(s_Window, button) == GLFW_PRESS;

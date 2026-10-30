@@ -66,6 +66,7 @@ namespace Mara
 
         glEnable(GL_DEPTH_TEST);
         glClearColor(0.075f, 0.095f, 0.13f, 1.0f);
+        // glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     }
 
     void App::run()
