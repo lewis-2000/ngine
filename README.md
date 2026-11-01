@@ -1,8 +1,14 @@
 # NGine
 
-NGine is a C++20 OpenGL robot visualization and editor application. It renders a robot model in an interactive editor and can display live, read-only telemetry from the robot's ROS 2 computer.
+NGine is a C++20/OpenGL robotics visualization application with two separate workspaces:
+
+- **Animation workspace** — inspect the robot model, edit joints, preview animations, and review telemetry.
+- **Simulation workspace** — visualize depth data, inspect a persistent map, and drive a local robot proxy through a generated collision environment.
+
+The ROS 2 integration is read-only. NGine does not publish motor commands or call robot-control services.
 
 ![NGine editor viewport](Docs/AppEditorUpdated.png)
+![NGine editor simulation Workspace Early Screenshot](Docs/Simulation_Early_Screenshot.png)
 
 ## Table of Contents
 
@@ -11,7 +17,9 @@ NGine is a C++20 OpenGL robot visualization and editor application. It renders a
 - [Installation (Windows)](#installation-windows)
 - [Build](#build)
 - [Run](#run)
+- [Workspaces](#workspaces)
 - [ROS 2 Telemetry Bridge](#ros-2-telemetry-bridge)
+- [Depth Mapping and Simulation](#depth-mapping-and-simulation)
 - [Troubleshooting](#troubleshooting)
 
 ## Overview
@@ -29,13 +37,15 @@ Short recordings showing the app running (a proof of life). They do not cover ev
 
 **Features**
 
-- Camera orbit, pan, and zoom
-- Joint controls and demo animation controls
+- Orbit, pan, and zoom navigation in the robot viewport and map viewport
+- Joint controls and demo animation playback
 - Live read-only motor, power, IMU, and controller-state telemetry
 - RGB and depth camera previews
-- Persistent depth occupancy maps with 3D and top-down visualization
-- Occupancy collision queries and map save/load
-- Local simulation workspace with generated obstacles and collision-blocked movement
+- Persistent voxel occupancy maps with save/load support
+- Live depth-map accumulation from the ROS 2 depth stream
+- Simultaneous polygon-based 3D and 2D top-down map views
+- Scanner field-of-view visualization
+- Local robot-proxy movement with voxel collision checks
 
 **Dependencies** (all vendored under `vendors/`): GLFW, GLAD, Dear ImGui, GLM, Assimp, TinyXML-2, stb.
 
@@ -119,6 +129,40 @@ Run from the repository root so relative shader, font, and model paths resolve:
 ```bash
 ./build/ngine.exe
 ```
+
+On startup, NGine asks which workspace to open. You can switch workspaces later from **View**:
+
+- **Animation workspace**
+- **Simulation workspace**
+
+## Workspaces
+
+### Animation workspace
+
+This is the robot-model workspace. It contains the scene viewport, world/link tree, inspector, animation controls, camera preview, telemetry, and console panels. The normal scene viewport uses:
+
+- Right mouse drag to orbit.
+- Middle mouse drag to pan.
+- Mouse wheel or `+`/`-` to zoom.
+
+### Simulation workspace
+
+This is a full-window local test environment. It contains a controls panel and two synchronized map views:
+
+- **3D visualization** — polygon-based occupied voxels, generated obstacles, the simulated robot, and the head scanner field of view.
+- **2D top view** — an X/Z collision-plane view of the same test and live map data.
+
+The controls panel provides:
+
+- **Navigate map** mode for camera navigation.
+- **Drive robot** mode for local WASD/arrow-key movement.
+- Robot reset and movement speed controls.
+- Live-map clearing.
+- Test-obstacle restoration.
+- ROS bridge connection and depth-stream status.
+- Perspective, top, and side 3D camera presets.
+
+No movement from this workspace is sent to the real robot.
 
 ## ROS 2 Telemetry Bridge
 
@@ -208,15 +252,30 @@ The last option applies healthy, read-only motor positions to the simulated robo
 - RGB falls back to the local camera preview if no ROS frame is available.
 - The detailed preview reports received frame dimensions but does not request higher resolution. The relay keeps only the newest frame, so opening it adds no network or decode load.
 
-### Depth map
+## Depth Mapping and Simulation
 
-Open **View > Depth map** to enable Map mode. New depth frames are accumulated into a persistent voxel map, which can be viewed as a projected 3D display or an X/Z top view. Map mode pauses the detailed robot scene render and displays a simple robot proxy marker. Maps can be saved to or loaded from the configured `.map` path.
+After connecting the bridge, open **View > Simulation workspace** or select it in the startup chooser. The simulation workspace is prepared for live depth testing:
 
-The initial projection uses configurable default camera intrinsics and the sensor-relative frame. Accurate world-aligned mapping while the robot moves requires camera intrinsics and robot localization/odometry to be added to the telemetry protocol.
+1. Select **Connect bridge** in the Simulation Controls panel.
+2. Confirm that the panel reports **Depth stream LIVE** and shows changing frame numbers.
+3. Leave **Navigate map** active to inspect the map, or select **Drive robot** to move the local proxy.
+4. Watch the live map accumulate as new depth frames arrive.
 
-### Simulation workspace
+The map colors distinguish the data sources. In the 3D view, generated obstacles are orange, live depth voxels are blue, and the head scanner fan is yellow. In the 2D view, generated obstacles are pink, live depth voxels are green, and the simulated robot is green.
 
-Use **View > Simulation workspace** to switch from the animation/editor workspace to a full-window map and collision environment. The workspace has a dedicated controls panel and shows the polygon-based **3D visualization** and **2D top view** simultaneously. Use **Navigate map** to orbit the 3D camera with left-drag, pan with right-drag, and zoom with the mouse wheel. Use **Drive robot** to move the simulated robot with **W/A/S/D** or the arrow keys; movement is blocked when the robot proxy intersects an occupied voxel. The 3D view projects accumulated depth voxels and draws amber scan rays from the depth scanner; the map updates when each new depth frame arrives. This workspace is entirely local and does not publish commands or telemetry values to the real robot. Use **View > Animation workspace** to return to the robot and animation panels.
+The generated test environment includes boundary walls and varied internal obstacles. **Restore test obstacles** recreates it if it has been cleared or changed.
+
+The occupancy-map implementation supports saving and loading map files; the current simulation workspace focuses on live inspection and collision testing.
+
+### Current mapping assumptions
+
+The current bridge supplies depth frames, but not camera calibration or robot localization. The mapping prototype therefore uses:
+
+- Default camera intrinsics.
+- Sensor-relative coordinates.
+- The simulated robot position as the visualization anchor.
+
+For accurate world-aligned mapping while the real robot moves, the bridge must provide calibrated camera parameters and a robot pose/odometry source. The current collision system is an occupancy-query and local-proxy test system, not a controller for the physical robot.
 
 Protocol and safety details: [Docs/ros2-bridge-read-only-reference.md](Docs/ros2-bridge-read-only-reference.md).
 

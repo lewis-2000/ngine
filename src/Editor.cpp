@@ -139,15 +139,15 @@ namespace Mara
         // Geometry
         // ------------------------------------------------------------
 
-        style.WindowRounding = 2.0f;
+        style.WindowRounding = 0.0f;
         style.WindowMenuButtonPosition = ImGuiDir_None; // Hide the default title-bar window/menu drag icon.
         style.DockingSeparatorSize = 5.0f;
-        style.ChildRounding = 2.0f;
-        style.FrameRounding = 2.0f;
+        style.ChildRounding = 4.0f;
+        style.FrameRounding = 3.0f;
         style.PopupRounding = 2.0f;
         style.ScrollbarRounding = 2.0f;
         style.GrabRounding = 2.0f;
-        style.TabRounding = 2.0f;
+        style.TabRounding = 3.0f;
 
         style.WindowBorderSize = 1.0f;
         style.ChildBorderSize = 1.0f;
@@ -155,9 +155,9 @@ namespace Mara
         style.FrameBorderSize = 1.0f;
         style.TabBorderSize = 0.0f;
 
-        style.WindowPadding = ImVec2(12.0f, 10.0f);
-        style.FramePadding = ImVec2(9.0f, 6.0f);
-        style.ItemSpacing = ImVec2(8.0f, 6.0f);
+        style.WindowPadding = ImVec2(14.0f, 12.0f);
+        style.FramePadding = ImVec2(10.0f, 7.0f);
+        style.ItemSpacing = ImVec2(10.0f, 8.0f);
         style.ItemInnerSpacing = ImVec2(6.0f, 4.0f);
         style.CellPadding = ImVec2(7.0f, 5.0f);
         style.IndentSpacing = 18.0f;
@@ -174,10 +174,10 @@ namespace Mara
 
         // Background hierarchy
         colors[ImGuiCol_WindowBg] =
-            ImVec4(0.93f, 0.94f, 0.96f, 1.00f);
+            ImVec4(0.95f, 0.96f, 0.97f, 1.00f);
 
         colors[ImGuiCol_ChildBg] =
-            ImVec4(0.97f, 0.97f, 0.98f, 1.00f);
+            ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
 
         colors[ImGuiCol_PopupBg] =
             ImVec4(0.99f, 0.99f, 1.00f, 0.99f);
@@ -197,7 +197,7 @@ namespace Mara
 
         // Borders / separators
         colors[ImGuiCol_Border] =
-            ImVec4(0.60f, 0.64f, 0.70f, 0.92f);
+            ImVec4(0.78f, 0.80f, 0.84f, 1.00f);
 
         colors[ImGuiCol_BorderShadow] =
             ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
@@ -213,7 +213,7 @@ namespace Mara
 
         // Text
         colors[ImGuiCol_Text] =
-            ImVec4(0.12f, 0.14f, 0.18f, 1.00f);
+            ImVec4(0.10f, 0.11f, 0.13f, 1.00f);
 
         colors[ImGuiCol_TextDisabled] =
             ImVec4(0.38f, 0.42f, 0.50f, 1.00f);
@@ -1398,10 +1398,9 @@ namespace Mara
                 (2.0f * kScannerHalfAngle * static_cast<float>(ray)) /
                     static_cast<float>(kScannerRayCount - 1);
             const float worldAngle = m_SimulatedRobotYaw + angle;
-            const ImVec2 scanPoint = project3d({
-                scannerPosition.x + scannerRange * std::sin(worldAngle),
-                scannerPosition.y,
-                scannerPosition.z + scannerRange * std::cos(worldAngle)});
+            const ImVec2 scanPoint = project3d({scannerPosition.x + scannerRange * std::sin(worldAngle),
+                                                scannerPosition.y,
+                                                scannerPosition.z + scannerRange * std::cos(worldAngle)});
             drawList->AddLine(
                 sensorPoint,
                 scanPoint,
@@ -1509,10 +1508,9 @@ namespace Mara
                 -1.10f +
                 (2.20f * static_cast<float>(ray)) / 12.0f;
             const float worldAngle = m_SimulatedRobotYaw + angle;
-            const ImVec2 scanPoint = project2d({
-                topScannerPosition.x + 2.0f * std::sin(worldAngle),
-                topScannerPosition.y,
-                topScannerPosition.z + 2.0f * std::cos(worldAngle)});
+            const ImVec2 scanPoint = project2d({topScannerPosition.x + 2.0f * std::sin(worldAngle),
+                                                topScannerPosition.y,
+                                                topScannerPosition.z + 2.0f * std::cos(worldAngle)});
             topDrawList->AddLine(
                 scannerOrigin,
                 scanPoint,
