@@ -2,6 +2,7 @@
 
 #include <string>
 #include <memory>
+#include <vector>
 
 #include "Framebuffer.h"
 #include "Animation.h"
@@ -18,6 +19,12 @@ struct ImFont;
 
 namespace Mara
 {
+    struct SimulationObstacle
+    {
+        std::string name;
+        glm::vec3 minimum{0.0f};
+        glm::vec3 maximum{0.0f};
+    };
 
     class Editor
     {
@@ -85,6 +92,7 @@ namespace Mara
         void updateSimulation(float deltaTime);
         void enterSimulationWorkspace();
         void resetTestEnvironment();
+        void generateSyntheticDepth();
         void applyTelemetryToRobot();
         void updateRemoteCameraTexture();
         void refreshDemoAnimation();
@@ -153,6 +161,7 @@ namespace Mara
         bool m_TelemetryErrorLatched = false;
         OccupancyMap m_OccupancyMap;
         OccupancyMap m_SimulationMap;
+        std::vector<SimulationObstacle> m_SimulationObstacles;
         glm::vec3 m_SimulatedRobotPosition{-4.0f, 0.25f, -4.0f};
         float m_SimulatedRobotYaw = 0.0f;
         float m_SimulationSpeed = 2.0f;
@@ -163,6 +172,24 @@ namespace Mara
         float m_MapZoom = 1.0f;
         glm::vec2 m_MapPan{0.0f};
         int m_MapViewPreset = 0;
+        std::string m_SimulationFixedFrame = "map";
+        bool m_ShowSimulationRobot = true;
+        bool m_ShowSimulationTf = true;
+        bool m_ShowSimulationDepth = true;
+        bool m_ShowSimulationMap = true;
+        bool m_ShowSimulationMarker = true;
+        bool m_HasSimulationGoal = false;
+        glm::vec3 m_SimulationGoal{0.0f, 0.0f, 0.0f};
+        bool m_AutonomousNavigation = false;
+        std::string m_SimulationAction = "Idle";
+        bool m_SyntheticDepthEnabled = true;
+        int m_SyntheticDepthWidth = 64;
+        int m_SyntheticDepthHeight = 48;
+        float m_SyntheticDepthHorizontalFov = 1.57f;
+        float m_SyntheticDepthVerticalFov = 1.05f;
+        float m_SyntheticDepthRange = 8.0f;
+        std::vector<std::uint16_t> m_SyntheticDepth;
+        std::uint64_t m_SyntheticDepthSequence = 0;
 
         float m_Position[3] = {0.0f, 0.0f, 0.0f};
         float m_Rotation[3] = {0.0f, 0.0f, 0.0f};

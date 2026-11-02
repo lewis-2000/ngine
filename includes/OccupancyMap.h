@@ -39,6 +39,17 @@ namespace Mara
             float focalLengthY,
             float principalX,
             float principalY);
+        void integrateDepth(
+            const std::vector<std::uint16_t> &depth,
+            int width,
+            int height,
+            float depthScale,
+            float focalLengthX,
+            float focalLengthY,
+            float principalX,
+            float principalY,
+            const glm::vec3 &sensorPosition,
+            float sensorYaw);
 
         bool isOccupied(const glm::vec3 &position) const;
         bool intersectsBox(const glm::vec3 &minimum, const glm::vec3 &maximum) const;

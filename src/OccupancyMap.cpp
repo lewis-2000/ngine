@@ -76,11 +76,38 @@ namespace Mara
         float principalX,
         float principalY)
     {
+        integrateDepth(
+            depth,
+            width,
+            height,
+            depthScale,
+            focalLengthX,
+            focalLengthY,
+            principalX,
+            principalY,
+            glm::vec3(0.0f),
+            0.0f);
+    }
+
+    void OccupancyMap::integrateDepth(
+        const std::vector<std::uint16_t> &depth,
+        int width,
+        int height,
+        float depthScale,
+        float focalLengthX,
+        float focalLengthY,
+        float principalX,
+        float principalY,
+        const glm::vec3 &sensorPosition,
+        float sensorYaw)
+    {
         if (width <= 0 || height <= 0 ||
             depth.size() != static_cast<std::size_t>(width) * static_cast<std::size_t>(height) ||
             focalLengthX <= 0.0f || focalLengthY <= 0.0f)
             return;
 
+        const float cosYaw = std::cos(sensorYaw);
+        const float sinYaw = std::sin(sensorYaw);
         std::unordered_map<std::int64_t, std::uint8_t> updates;
         updates.reserve(depth.size() / 4u);
         for (int y = 0; y < height; ++y)
@@ -96,7 +123,11 @@ namespace Mara
                     (static_cast<float>(x) - principalX) * z / focalLengthX,
                     -(static_cast<float>(y) - principalY) * z / focalLengthY,
                     z);
-                const glm::ivec3 coordinate = coordinateFor(point);
+                const glm::vec3 worldPoint(
+                    sensorPosition.x + cosYaw * point.x + sinYaw * point.z,
+                    sensorPosition.y + point.y,
+                    sensorPosition.z - sinYaw * point.x + cosYaw * point.z);
+                const glm::ivec3 coordinate = coordinateFor(worldPoint);
                 const std::int64_t voxelKey = key(coordinate);
                 auto [it, inserted] = updates.emplace(voxelKey, 1);
                 if (!inserted)

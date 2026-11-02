@@ -148,13 +148,15 @@ This is the robot-model workspace. It contains the scene viewport, world/link tr
 
 ### Simulation workspace
 
-This is a full-window local test environment. It contains a controls panel and two synchronized map views:
+This is a full-window hybrid, RViz-style visualization and local test environment. It contains a controls panel and two synchronized map views:
 
-- **3D visualization** — polygon-based occupied voxels, generated obstacles, the simulated robot, and the head scanner field of view.
-- **2D top view** — an X/Z collision-plane view of the same test and live map data.
+- **3D visualization** — occupied voxels, generated obstacles, the robot model proxy, TF overlay, goal marker, and head scanner field of view.
+- **2D top view** — an X/Z fixed-frame view of the same test and live map data with clickable goal placement.
 
 The controls panel provides:
 
+- RViz-style display toggles for the URDF robot model, derived TF frames, depth data, occupancy grid, and interactive marker.
+- A fixed-frame selector (`map`, `odom`, or `base_link`). The current bridge does not provide a TF stream, so these frames are derived from the local simulation and loaded URDF.
 - **Navigate map** mode for camera navigation.
 - **Drive robot** mode for local WASD/arrow-key movement.
 - Robot reset and movement speed controls.
@@ -163,7 +165,7 @@ The controls panel provides:
 - ROS bridge connection and depth-stream status.
 - Perspective, top, and side 3D camera presets.
 
-No movement from this workspace is sent to the real robot.
+Click the 2D top view to place an interactive goal marker. It is visualization-only and is not published to ROS. No movement from this workspace is sent to the real robot.
 
 ## ROS 2 Telemetry Bridge
 
@@ -259,10 +261,10 @@ After connecting the bridge, open **View > Simulation workspace** or select it i
 
 1. Select **Connect bridge** in the Simulation Controls panel.
 2. Confirm that the panel reports **Depth stream LIVE** and shows changing frame numbers.
-3. Leave **Navigate map** active to inspect the map, or select **Drive robot** to move the local proxy.
+3. Leave **Navigate map** active to inspect the map and click the 2D view to place a goal marker, or select **Drive robot** to move the local proxy.
 4. Watch the live map accumulate as new depth frames arrive.
 
-The map colors distinguish the data sources. In the 3D view, generated obstacles are orange, live depth voxels are blue, and the head scanner fan is yellow. In the 2D view, generated obstacles are pink, live depth voxels are green, and the simulated robot is green.
+The map colors distinguish the data sources. In the 3D view, generated obstacles are orange, live depth voxels are blue, the head scanner fan is yellow, and the goal marker is red. In the 2D view, generated obstacles are pink, live depth voxels are green, the simulated robot is green, and the goal marker is red.
 
 The generated test environment includes boundary walls and varied internal obstacles. **Restore test obstacles** recreates it if it has been cleared or changed.
 
@@ -273,10 +275,17 @@ The occupancy-map implementation supports saving and loading map files; the curr
 The current bridge supplies depth frames, but not camera calibration or robot localization. The mapping prototype therefore uses:
 
 - Default camera intrinsics.
-- Sensor-relative coordinates.
-- The simulated robot position as the visualization anchor.
+- Sensor-relative coordinates transformed by the simulated robot position and yaw.
+- The simulated robot pose as the visualization anchor.
 
-For accurate world-aligned mapping while the real robot moves, the bridge must provide calibrated camera parameters and a robot pose/odometry source. The current collision system is an occupancy-query and local-proxy test system, not a controller for the physical robot.
+For accurate world-aligned mapping while the real robot moves, the bridge must provide calibrated camera parameters and a robot pose/odometry source. Until then, the local proxy pose is intentionally used so the perception map participates in the simulation. The current collision system is an occupancy-query and local-proxy test system, not a controller for the physical robot.
+
+When no live ROS depth stream is available, the Simulation workspace generates a
+64x48 synthetic depth image by ray-casting the configured test obstacles from
+the simulated robot sensor pose. That image goes through the same depth-to-
+occupancy integration path as live data, and the synthetic map is refreshed
+each update so stale sensor observations do not create ghost obstacles. Enable
+or disable this behavior with **Use synthetic depth fallback**.
 
 Protocol and safety details: [Docs/ros2-bridge-read-only-reference.md](Docs/ros2-bridge-read-only-reference.md).
 
