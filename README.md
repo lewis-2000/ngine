@@ -10,6 +10,7 @@ The ROS 2 integration is read-only. NGine does not publish motor commands or cal
 ![NGine editor viewport](Docs/AppEditorUpdated.png)
 ![NGine editor simulation Workspace Early Screenshot](Docs/Simulation_Early_Screenshot.png)
 ![NGine editor simulation Workspace Sensor Read Out Screenshot](Docs/simualation_early_sensor_read_early.png)
+![NGine editor simulation Workspace Early Depth Map Screenshot](Docs/Depth_Map_Simulation_Screenshot.png)
 
 ## Table of Contents
 
