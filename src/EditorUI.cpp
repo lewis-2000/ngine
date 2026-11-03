@@ -312,10 +312,15 @@ namespace Mara
                                        : 0.0f;
 
         const float contentHeight = ImGui::GetContentRegionAvail().y;
-        ImGui::BeginChild("SimulationControls", ImVec2(240.0f, contentHeight), true);
+        ImGui::BeginChild(
+            "SimulationControls",
+            ImVec2(270.0f, contentHeight),
+            true);
         ImGui::TextColored(kViewportAccent, "SIMULATION CONTROLS");
-        ImGui::Separator();
-        ImGui::TextColored(kViewportAccent, "RVIZ DISPLAY");
+        ImGui::TextDisabled("Local navigation and sensor preview");
+        ImGui::Spacing();
+        if (ImGui::CollapsingHeader("Display", ImGuiTreeNodeFlags_DefaultOpen))
+        {
         ImGui::TextDisabled("Fixed frame");
         const char *fixedFrames[] = {"map", "odom", "base_link"};
         int fixedFrameIndex = m_SimulationFixedFrame == "odom"
@@ -332,7 +337,10 @@ namespace Mara
         ImGui::Checkbox("Interactive goal marker", &m_ShowSimulationMarker);
         ImGui::TextDisabled(
             "The bridge supplies joints, IMU, and depth; TF is derived from the loaded URDF.");
-        ImGui::Separator();
+        }
+        ImGui::Spacing();
+        if (ImGui::CollapsingHeader("Navigation", ImGuiTreeNodeFlags_DefaultOpen))
+        {
         ImGui::TextDisabled("Interaction mode");
         if (ImGui::Button(
                 m_MapNavigationMode ? "Drive robot" : "Navigate map",
@@ -342,13 +350,22 @@ namespace Mara
             m_MapNavigationMode
                 ? "Map navigation is active. Mouse input controls the 3D camera."
                 : "Robot drive is active. WASD and arrow keys move the robot.");
-        ImGui::Spacing();
-        if (ImGui::Button("Reset robot", ImVec2(-1.0f, 0.0f)))
+        const float actionWidth = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
+        if (ImGui::Button("Reset robot", ImVec2(actionWidth, 0.0f)))
         {
             m_SimulatedRobotPosition = {-4.0f, 0.25f, -4.0f};
             m_SimulatedRobotYaw = 0.0f;
             m_AutonomousNavigation = false;
             m_SimulationAction = "Idle";
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Clear map", ImVec2(-1.0f, 0.0f)))
+        {
+            m_OccupancyMap.clear();
+            m_LastMappedDepthSequence = 0;
+            m_SimulationPath.clear();
+            invalidateSimulationPath();
+            m_SimulationPathReplanTimer = 0.0f;
         }
         if (ImGui::Button(
                 m_AutonomousNavigation ? "Stop navigation" : "Navigate to goal",
@@ -372,15 +389,12 @@ namespace Mara
         }
         ImGui::SetNextItemWidth(-1.0f);
         ImGui::SliderFloat("Speed", &m_SimulationSpeed, 0.25f, 5.0f, "%.2f m/s");
-        if (ImGui::Button("Clear live map", ImVec2(-1.0f, 0.0f)))
-        {
-            m_OccupancyMap.clear();
-            m_LastMappedDepthSequence = 0;
-        }
         if (ImGui::Button("Restore test obstacles", ImVec2(-1.0f, 0.0f)))
             resetTestEnvironment();
-        ImGui::Separator();
-        ImGui::TextColored(kViewportAccent, "LIVE SENSOR BRIDGE");
+        }
+        ImGui::Spacing();
+        if (ImGui::CollapsingHeader("Sensor bridge", ImGuiTreeNodeFlags_DefaultOpen))
+        {
         ImGui::Checkbox("Use synthetic depth fallback", &m_SyntheticDepthEnabled);
         const bool bridgeLive =
             m_TelemetryClient.connected() && !m_TelemetryClient.stale();
@@ -411,7 +425,10 @@ namespace Mara
                 m_SyntheticDepthHeight,
                 static_cast<unsigned long long>(m_SyntheticDepthSequence),
                 m_SyntheticDepthRange);
-        ImGui::Separator();
+        }
+        ImGui::Spacing();
+        if (ImGui::CollapsingHeader("Status", ImGuiTreeNodeFlags_DefaultOpen))
+        {
         ImGui::Text("Robot position");
         ImGui::Text("(%.2f, %.2f, %.2f)",
                     m_SimulatedRobotPosition.x,
@@ -427,8 +444,8 @@ namespace Mara
             "%s",
             m_SimulationStatus.c_str());
         ImGui::Text("Action: %s", m_SimulationAction.c_str());
-        ImGui::Separator();
-        ImGui::TextColored(kViewportAccent, "PROXIMITY STATS");
+        ImGui::Spacing();
+        ImGui::TextColored(kViewportAccent, "PROXIMITY");
         ImGui::Text("Test obstacles: %zu", m_SimulationObstacles.size());
         if (nearestObstacle)
             ImGui::Text(
@@ -452,28 +469,31 @@ namespace Mara
                     distanceToObstacle(obstacle));
             ImGui::TreePop();
         }
-        ImGui::Separator();
         ImGui::TextWrapped(
             "3D: right drag orbit, middle drag pan, wheel or +/- zoom. "
             "Click the 2D view to place a goal marker. "
             "Orange voxels are test obstacles; blue voxels are live depth data.");
-        ImGui::Separator();
+        }
+        ImGui::Spacing();
         ImGui::TextDisabled("3D view");
-        if (ImGui::Button("Perspective"))
+        const float presetWidth = (ImGui::GetContentRegionAvail().x -
+                                   ImGui::GetStyle().ItemSpacing.x * 2.0f) /
+                                  3.0f;
+        if (ImGui::Button("Perspective", ImVec2(presetWidth, 0.0f)))
         {
             m_MapViewPreset = 0;
             m_MapOrbitYaw = 0.65f;
             m_MapOrbitPitch = 0.55f;
         }
         ImGui::SameLine();
-        if (ImGui::Button("Top"))
+        if (ImGui::Button("Top", ImVec2(presetWidth, 0.0f)))
         {
             m_MapViewPreset = 1;
             m_MapOrbitYaw = 0.0f;
             m_MapOrbitPitch = -1.35f;
         }
         ImGui::SameLine();
-        if (ImGui::Button("Side"))
+        if (ImGui::Button("Side", ImVec2(-1.0f, 0.0f)))
         {
             m_MapViewPreset = 2;
             m_MapOrbitYaw = 1.5708f;
@@ -486,7 +506,10 @@ namespace Mara
         const float paneWidth = (ImGui::GetContentRegionAvail().x - 12.0f) * 0.5f;
         const float paneHeight = ImGui::GetContentRegionAvail().y;
 
-        ImGui::BeginChild("Map3DPane", ImVec2(paneWidth, paneHeight), true);
+        ImGui::BeginChild(
+            "Map3DPane",
+            ImVec2(paneWidth, paneHeight),
+            true);
         ImGui::TextColored(kViewportAccent, "3D VISUALIZATION");
         ImGui::SameLine();
         ImGui::TextDisabled("polygon map");
@@ -688,6 +711,15 @@ namespace Mara
                 IM_COL32(255, 90, 90, 255),
                 2.0f);
         }
+        if (m_SimulationPath.size() > 1)
+        {
+            for (std::size_t index = 1; index < m_SimulationPath.size(); ++index)
+                drawList->AddLine(
+                    project3d(m_SimulationPath[index - 1]),
+                    project3d(m_SimulationPath[index]),
+                    IM_COL32(255, 220, 80, 210),
+                    2.0f);
+        }
         drawList->AddText(
             ImVec2(viewMin.x + 10.0f, viewMin.y + 10.0f),
             IM_COL32(220, 230, 240, 255),
@@ -727,6 +759,9 @@ namespace Mara
             m_SimulationGoal.z = (click.y - topCenter.y) / topScale;
             m_SimulationGoal.y = 0.0f;
             m_HasSimulationGoal = true;
+            m_SimulationPath.clear();
+            invalidateSimulationPath();
+            m_SimulationPathReplanTimer = 0.0f;
             m_SimulationStatus = "Goal marker placed";
         }
         const auto project2d = [topCenter, topScale](const glm::vec3 &position)
@@ -825,6 +860,15 @@ namespace Mara
                 ImVec2(goal.x, goal.y + 6.0f),
                 IM_COL32(255, 90, 90, 255),
                 2.0f);
+        }
+        if (m_SimulationPath.size() > 1)
+        {
+            for (std::size_t index = 1; index < m_SimulationPath.size(); ++index)
+                topDrawList->AddLine(
+                    project2d(m_SimulationPath[index - 1]),
+                    project2d(m_SimulationPath[index]),
+                    IM_COL32(255, 220, 80, 230),
+                    2.0f);
         }
         const glm::vec3 topScannerPosition = m_SimulatedRobotPosition;
         const ImVec2 scannerOrigin = project2d(topScannerPosition);

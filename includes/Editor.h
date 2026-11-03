@@ -2,6 +2,9 @@
 
 #include <string>
 #include <memory>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
 #include <vector>
 
 #include "Framebuffer.h"
@@ -92,6 +95,23 @@ namespace Mara
         void updateSimulation(float deltaTime);
         void enterSimulationWorkspace();
         void resetTestEnvironment();
+        struct PathRequest
+        {
+            std::uint64_t generation = 0;
+            glm::vec3 start{0.0f};
+            glm::vec3 goal{0.0f};
+            std::vector<SimulationObstacle> obstacles;
+            std::vector<OccupiedVoxel> sensorVoxels;
+            float sensorVoxelSize = 0.05f;
+            bool includeSensorMap = false;
+        };
+
+        static bool rebuildSimulationPath(
+            const PathRequest &request,
+            std::vector<glm::vec3> &path);
+        void requestSimulationPath();
+        void invalidateSimulationPath();
+        void applyCompletedSimulationPath();
         void generateSyntheticDepth();
         void applyTelemetryToRobot();
         void updateRemoteCameraTexture();
@@ -181,6 +201,21 @@ namespace Mara
         bool m_HasSimulationGoal = false;
         glm::vec3 m_SimulationGoal{0.0f, 0.0f, 0.0f};
         bool m_AutonomousNavigation = false;
+        std::vector<glm::vec3> m_SimulationPath;
+        std::size_t m_SimulationPathWaypoint = 1;
+        float m_SimulationPathReplanTimer = 0.0f;
+        std::mutex m_PathMutex;
+        std::condition_variable m_PathCondition;
+        std::thread m_PathfindingThread;
+        bool m_StopPathfindingThread = false;
+        bool m_PathRequestPending = false;
+        bool m_PathSearchRunning = false;
+        bool m_PathResultReady = false;
+        bool m_PathResultFound = false;
+        std::uint64_t m_PathRequestGeneration = 0;
+        std::uint64_t m_PathResultGeneration = 0;
+        PathRequest m_PathRequest;
+        std::vector<glm::vec3> m_PathResult;
         std::string m_SimulationAction = "Idle";
         bool m_SyntheticDepthEnabled = true;
         int m_SyntheticDepthWidth = 64;

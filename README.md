@@ -163,6 +163,8 @@ The controls panel provides:
 - Robot reset and movement speed controls.
 - Live-map clearing.
 - Test-obstacle restoration.
+- The generated course starts at the southwest corner with a preset northeast goal.
+- Autonomous motion uses an 8-connected grid pathfinder and draws the planned route in both map views.
 - ROS bridge connection and depth-stream status.
 - Perspective, top, and side 3D camera presets.
 

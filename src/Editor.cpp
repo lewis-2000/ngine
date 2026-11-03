@@ -9,7 +9,9 @@
 #include <iomanip>
 #include <iterator>
 #include <limits>
+#include <queue>
 #include <sstream>
+#include <unordered_map>
 #include <utility>
 #include <filesystem>
 
@@ -133,15 +135,15 @@ namespace Mara
         // Geometry
         // ------------------------------------------------------------
 
-        style.WindowRounding = 0.0f;
+        style.WindowRounding = 10.0f;
         style.WindowMenuButtonPosition = ImGuiDir_None; // Hide the default title-bar window/menu drag icon.
         style.DockingSeparatorSize = 5.0f;
-        style.ChildRounding = 4.0f;
-        style.FrameRounding = 3.0f;
-        style.PopupRounding = 2.0f;
-        style.ScrollbarRounding = 2.0f;
-        style.GrabRounding = 2.0f;
-        style.TabRounding = 3.0f;
+        style.ChildRounding = 9.0f;
+        style.FrameRounding = 6.0f;
+        style.PopupRounding = 8.0f;
+        style.ScrollbarRounding = 6.0f;
+        style.GrabRounding = 6.0f;
+        style.TabRounding = 7.0f;
 
         style.WindowBorderSize = 1.0f;
         style.ChildBorderSize = 1.0f;
@@ -149,9 +151,9 @@ namespace Mara
         style.FrameBorderSize = 1.0f;
         style.TabBorderSize = 0.0f;
 
-        style.WindowPadding = ImVec2(14.0f, 12.0f);
+        style.WindowPadding = ImVec2(16.0f, 14.0f);
         style.FramePadding = ImVec2(10.0f, 7.0f);
-        style.ItemSpacing = ImVec2(10.0f, 8.0f);
+        style.ItemSpacing = ImVec2(9.0f, 7.0f);
         style.ItemInnerSpacing = ImVec2(6.0f, 4.0f);
         style.CellPadding = ImVec2(7.0f, 5.0f);
         style.IndentSpacing = 18.0f;
@@ -171,7 +173,7 @@ namespace Mara
             ImVec4(0.95f, 0.96f, 0.97f, 1.00f);
 
         colors[ImGuiCol_ChildBg] =
-            ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
+            ImVec4(0.98f, 0.985f, 0.995f, 1.00f);
 
         colors[ImGuiCol_PopupBg] =
             ImVec4(0.99f, 0.99f, 1.00f, 0.99f);
@@ -231,6 +233,11 @@ namespace Mara
 
         colors[ImGuiCol_ButtonActive] =
             ImVec4(0.45f, 0.62f, 0.84f, 1.00f);
+
+        colors[ImGuiCol_ResizeGrip] =
+            ImVec4(0.35f, 0.52f, 0.76f, 0.30f);
+        colors[ImGuiCol_ResizeGripHovered] =
+            ImVec4(0.25f, 0.45f, 0.72f, 0.60f);
 
         // Headers / tree nodes
         colors[ImGuiCol_Header] =
@@ -339,6 +346,38 @@ namespace Mara
         if (m_Robot && m_Robot->isLoaded())
             m_SelectedLink = m_Robot->rootLink();
 
+        m_StopPathfindingThread = false;
+        m_PathfindingThread = std::thread([this]
+        {
+            std::unique_lock<std::mutex> lock(m_PathMutex);
+            while (true)
+            {
+                m_PathCondition.wait(
+                    lock,
+                    [this]
+                    { return m_StopPathfindingThread || m_PathRequestPending; });
+                if (m_StopPathfindingThread)
+                    return;
+
+                PathRequest request = std::move(m_PathRequest);
+                m_PathRequestPending = false;
+                m_PathSearchRunning = true;
+                lock.unlock();
+
+                std::vector<glm::vec3> result;
+                const bool found = rebuildSimulationPath(request, result);
+
+                lock.lock();
+                if (!m_StopPathfindingThread)
+                {
+                    m_PathSearchRunning = false;
+                    m_PathResult = std::move(result);
+                    m_PathResultFound = found;
+                    m_PathResultGeneration = request.generation;
+                    m_PathResultReady = true;
+                }
+            }
+        });
         m_Initialized = true;
     }
 
@@ -898,6 +937,10 @@ namespace Mara
     {
         m_SimulationMap.clear();
         m_SimulationObstacles.clear();
+        m_SimulationPath.clear();
+        invalidateSimulationPath();
+        m_SimulationPathWaypoint = 1;
+        m_SimulationPathReplanTimer = 0.0f;
         const auto addObstacle = [this](
                                      const char *name,
                                      const glm::vec3 &minimum,
@@ -910,33 +953,218 @@ namespace Mara
         addObstacle("South wall", {-6.0f, 0.0f, 5.5f}, {6.0f, 0.5f, 6.0f});
         addObstacle("West wall", {-6.0f, 0.0f, -6.0f}, {-5.5f, 0.5f, 6.0f});
         addObstacle("East wall", {5.5f, 0.0f, -6.0f}, {6.0f, 0.5f, 6.0f});
-        addObstacle("Central tower", {-3.5f, 0.0f, -3.0f}, {-2.5f, 1.5f, 1.5f});
-        addObstacle("West barrier", {0.0f, 0.0f, -1.0f}, {3.0f, 1.0f, 0.0f});
-        addObstacle("North pillar", {-1.0f, 0.0f, 2.0f}, {0.0f, 2.0f, 4.5f});
-        addObstacle("East block", {2.5f, 0.0f, 1.5f}, {4.5f, 1.25f, 2.25f});
-        addObstacle("Southwest block", {-4.5f, 0.0f, 2.25f}, {-2.5f, 0.9f, 3.0f});
-        addObstacle("Northeast pillar", {1.0f, 0.0f, 3.75f}, {2.0f, 1.6f, 4.5f});
-        addObstacle("Southeast wall", {3.75f, 0.0f, -4.5f}, {4.75f, 0.75f, -2.0f});
-        addObstacle("South ledge", {-1.5f, 0.0f, -5.0f}, {0.0f, 1.2f, -4.0f});
-        addObstacle("West crate", {-5.0f, 0.0f, -1.5f}, {-4.0f, 0.65f, -0.5f});
-        addObstacle("East pillar", {3.5f, 0.0f, -0.75f}, {4.5f, 2.2f, 0.0f});
-        addObstacle("North block", {-2.0f, 0.0f, 4.0f}, {-0.75f, 0.55f, 5.0f});
-        addObstacle("Center pillar", {0.75f, 0.0f, 1.75f}, {1.5f, 2.4f, 2.5f});
-        addObstacle("Northwest pillar", {-4.5f, 0.0f, 4.0f}, {-3.5f, 1.8f, 4.75f});
-        addObstacle("Southeast block", {2.25f, 0.0f, -3.0f}, {3.0f, 0.5f, -1.5f});
-        addObstacle("South center block", {-0.5f, 0.0f, -2.5f}, {0.5f, 0.75f, -1.75f});
-        addObstacle("West center block", {-3.0f, 0.0f, 0.75f}, {-1.75f, 1.1f, 1.5f});
-        addObstacle("North-east crate", {3.0f, 0.0f, 4.6f}, {4.2f, 0.8f, 5.3f});
-        addObstacle("Southwest pillar", {-5.0f, 0.0f, -4.8f}, {-4.5f, 1.4f, -3.8f});
-        addObstacle("East corridor block", {4.0f, 0.0f, 0.75f}, {5.0f, 1.1f, 1.5f});
-        addObstacle("West corridor block", {-5.0f, 0.0f, 1.0f}, {-4.0f, 0.9f, 2.0f});
-        addObstacle("North center block", {1.5f, 0.0f, -4.5f}, {2.5f, 1.0f, -3.5f});
+        addObstacle("West room wall", {-4.5f, 0.0f, -3.5f}, {-4.0f, 1.4f, 1.5f});
+        addObstacle("West room divider", {-4.0f, 0.0f, 1.0f}, {-1.5f, 1.0f, 1.5f});
+        addObstacle("South corridor wall", {-3.0f, 0.0f, -2.0f}, {1.5f, 1.0f, -1.5f});
+        addObstacle("North corridor wall", {-1.5f, 0.0f, 1.5f}, {3.5f, 1.0f, 2.0f});
+        addObstacle("Center island", {-0.75f, 0.0f, -0.75f}, {0.75f, 1.8f, 0.75f});
+        addObstacle("East room wall", {3.5f, 0.0f, -3.5f}, {4.0f, 1.4f, 1.0f});
+        addObstacle("East room divider", {1.5f, 0.0f, 1.0f}, {4.0f, 1.0f, 1.5f});
+        addObstacle("Southwest crate", {-3.5f, 0.0f, -4.5f}, {-2.5f, 0.8f, -3.5f});
+        addObstacle("Northeast crate", {2.0f, 0.0f, 3.0f}, {3.0f, 0.8f, 4.0f});
         m_SimulatedRobotPosition = {-4.0f, 0.25f, -4.0f};
         m_SimulatedRobotYaw = 0.0f;
+        m_SimulationGoal = {4.5f, 0.0f, 4.5f};
+        m_HasSimulationGoal = true;
         m_AutonomousNavigation = false;
-        m_SimulationAction = "Idle";
+        m_SimulationAction = "Ready: click Navigate to goal";
         m_SimulationStatus = "Test environment generated";
         m_TestEnvironmentGenerated = true;
+    }
+
+    bool Editor::rebuildSimulationPath(
+        const PathRequest &request,
+        std::vector<glm::vec3> &path)
+    {
+        constexpr float cellSize = 0.25f;
+        constexpr int gridSize = 44;
+        constexpr float gridMinimum = -5.5f;
+        struct Cell
+        {
+            int x;
+            int z;
+            bool operator==(const Cell &other) const { return x == other.x && z == other.z; }
+        };
+        struct CellHash
+        {
+            std::size_t operator()(const Cell &cell) const
+            {
+                return static_cast<std::size_t>((cell.x * 73856093) ^ (cell.z * 19349663));
+            }
+        };
+        const auto positionFor = [](const Cell &cell)
+        {
+            return glm::vec3(
+                gridMinimum + (static_cast<float>(cell.x) + 0.5f) * cellSize,
+                0.25f,
+                gridMinimum + (static_cast<float>(cell.z) + 0.5f) * cellSize);
+        };
+        const auto cellFor = [](const glm::vec3 &position)
+        {
+            return Cell{
+                std::clamp(static_cast<int>((position.x - gridMinimum) / cellSize), 0, gridSize - 1),
+                std::clamp(static_cast<int>((position.z - gridMinimum) / cellSize), 0, gridSize - 1)};
+        };
+        const glm::vec3 halfExtents(0.25f, 0.25f, 0.25f);
+        const auto intersectsSensorVoxel = [&request, halfExtents](const glm::vec3 &position)
+        {
+            if (!request.includeSensorMap)
+                return false;
+            for (const OccupiedVoxel &voxel : request.sensorVoxels)
+            {
+                const glm::vec3 minimum =
+                    glm::vec3(voxel.coordinate) * request.sensorVoxelSize -
+                    glm::vec3(request.sensorVoxelSize * 0.5f);
+                const glm::vec3 maximum = minimum + request.sensorVoxelSize;
+                if (position.x - halfExtents.x <= maximum.x &&
+                    position.x + halfExtents.x >= minimum.x &&
+                    position.y - halfExtents.y <= maximum.y &&
+                    position.y + halfExtents.y >= minimum.y &&
+                    position.z - halfExtents.z <= maximum.z &&
+                    position.z + halfExtents.z >= minimum.z)
+                    return true;
+            }
+            return false;
+        };
+        const auto intersectsObstacle = [&request, halfExtents](const glm::vec3 &position)
+        {
+            for (const SimulationObstacle &obstacle : request.obstacles)
+            {
+                if (position.x - halfExtents.x <= obstacle.maximum.x &&
+                    position.x + halfExtents.x >= obstacle.minimum.x &&
+                    position.y - halfExtents.y <= obstacle.maximum.y &&
+                    position.y + halfExtents.y >= obstacle.minimum.y &&
+                    position.z - halfExtents.z <= obstacle.maximum.z &&
+                    position.z + halfExtents.z >= obstacle.minimum.z)
+                    return true;
+            }
+            return false;
+        };
+        const auto isWalkable = [&intersectsObstacle, &intersectsSensorVoxel](const glm::vec3 &position)
+        {
+            return !intersectsObstacle(position) && !intersectsSensorVoxel(position);
+        };
+        const auto nearestWalkable = [&isWalkable, &positionFor](Cell origin)
+        {
+            for (int radius = 0; radius < 12; ++radius)
+                for (int x = origin.x - radius; x <= origin.x + radius; ++x)
+                    for (int z = origin.z - radius; z <= origin.z + radius; ++z)
+                    {
+                        if (x < 0 || x >= gridSize || z < 0 || z >= gridSize ||
+                            std::max(std::abs(x - origin.x), std::abs(z - origin.z)) != radius)
+                            continue;
+                        if (isWalkable(positionFor({x, z})))
+                            return Cell{x, z};
+                    }
+            return origin;
+        };
+
+        const Cell start = nearestWalkable(cellFor(request.start));
+        const Cell goal = nearestWalkable(cellFor(request.goal));
+        if (!isWalkable(positionFor(start)) || !isWalkable(positionFor(goal)))
+            return false;
+
+        struct QueueEntry
+        {
+            float score;
+            Cell cell;
+            bool operator>(const QueueEntry &other) const { return score > other.score; }
+        };
+        const auto heuristic = [](const Cell &a, const Cell &b)
+        {
+            return std::abs(a.x - b.x) + std::abs(a.z - b.z);
+        };
+        std::priority_queue<QueueEntry, std::vector<QueueEntry>, std::greater<QueueEntry>> open;
+        std::unordered_map<Cell, float, CellHash> cost;
+        std::unordered_map<Cell, Cell, CellHash> parent;
+        open.push({0.0f, start});
+        cost[start] = 0.0f;
+        constexpr std::array<Cell, 8> neighbors{{
+            {-1, 0}, {1, 0}, {0, -1}, {0, 1},
+            {-1, -1}, {-1, 1}, {1, -1}, {1, 1}}};
+        while (!open.empty())
+        {
+            const Cell current = open.top().cell;
+            open.pop();
+            if (current == goal)
+                break;
+            for (const Cell &offset : neighbors)
+            {
+                const Cell next{current.x + offset.x, current.z + offset.z};
+                if (next.x < 0 || next.x >= gridSize || next.z < 0 || next.z >= gridSize ||
+                    !isWalkable(positionFor(next)))
+                    continue;
+                if (offset.x != 0 && offset.z != 0 &&
+                    (!isWalkable(positionFor({current.x + offset.x, current.z})) ||
+                     !isWalkable(positionFor({current.x, current.z + offset.z}))))
+                    continue;
+                const float newCost = cost[current] +
+                                      (offset.x != 0 && offset.z != 0 ? 1.4142f : 1.0f);
+                if (!cost.contains(next) || newCost < cost[next])
+                {
+                    cost[next] = newCost;
+                    parent[next] = current;
+                    open.push({newCost + static_cast<float>(heuristic(next, goal)), next});
+                }
+            }
+        }
+        if (!cost.contains(goal))
+            return false;
+
+        path.clear();
+        for (Cell current = goal;; current = parent[current])
+        {
+            path.push_back(positionFor(current));
+            if (current == start)
+                break;
+        }
+        std::reverse(path.begin(), path.end());
+        return true;
+    }
+
+    void Editor::requestSimulationPath()
+    {
+        std::lock_guard<std::mutex> lock(m_PathMutex);
+        if (m_PathRequestPending || m_PathSearchRunning || m_PathResultReady)
+            return;
+        m_PathRequest.start = m_SimulatedRobotPosition;
+        m_PathRequest.goal = m_SimulationGoal;
+        m_PathRequest.generation = ++m_PathRequestGeneration;
+        m_PathRequest.obstacles = m_SimulationObstacles;
+        m_PathRequest.includeSensorMap = m_ShowSimulationDepth;
+        m_PathRequest.sensorVoxelSize = m_OccupancyMap.voxelSize();
+        m_PathRequest.sensorVoxels = m_OccupancyMap.voxels();
+        m_PathRequestPending = true;
+        m_PathResultReady = false;
+        m_PathCondition.notify_one();
+    }
+
+    void Editor::invalidateSimulationPath()
+    {
+        std::lock_guard<std::mutex> lock(m_PathMutex);
+        ++m_PathRequestGeneration;
+        m_PathResultReady = false;
+    }
+
+    void Editor::applyCompletedSimulationPath()
+    {
+        std::lock_guard<std::mutex> lock(m_PathMutex);
+        if (!m_PathResultReady)
+            return;
+        m_PathResultReady = false;
+        if (m_PathResultGeneration != m_PathRequestGeneration)
+            return;
+        if (m_PathResultFound)
+        {
+            m_SimulationPath = std::move(m_PathResult);
+            m_SimulationPathWaypoint = 1;
+        }
+        else
+        {
+            m_SimulationPath.clear();
+            m_SimulationAction = "No route to goal";
+            m_SimulationStatus = "Navigation blocked: no route";
+        }
     }
 
     void Editor::generateSyntheticDepth()
@@ -1002,6 +1230,8 @@ namespace Mara
         if (!m_SimulationWorkspace || m_MapNavigationMode)
             return;
 
+        applyCompletedSimulationPath();
+        m_SimulationPathReplanTimer -= deltaTime;
         glm::vec3 direction(0.0f);
         if (m_AutonomousNavigation && m_HasSimulationGoal)
         {
@@ -1014,7 +1244,33 @@ namespace Mara
                 m_SimulationStatus = "Goal reached";
                 return;
             }
-            direction = glm::vec3(planarGoal.x, 0.0f, planarGoal.y);
+            const bool shouldReplan =
+                m_SimulationPath.empty() ||
+                m_SimulationPathReplanTimer <= 0.0f;
+            if (shouldReplan)
+            {
+                requestSimulationPath();
+                m_SimulationPathReplanTimer = 0.20f;
+            }
+            if (m_SimulationPath.empty())
+            {
+                m_SimulationAction = "Planning route";
+                return;
+            }
+            while (m_SimulationPathWaypoint + 1 < m_SimulationPath.size() &&
+                   glm::length(
+                       glm::vec2(
+                           m_SimulationPath[m_SimulationPathWaypoint].x -
+                               m_SimulatedRobotPosition.x,
+                           m_SimulationPath[m_SimulationPathWaypoint].z -
+                               m_SimulatedRobotPosition.z)) <= 0.12f)
+                ++m_SimulationPathWaypoint;
+            const glm::vec3 nextWaypoint =
+                m_SimulationPathWaypoint < m_SimulationPath.size()
+                    ? m_SimulationPath[m_SimulationPathWaypoint]
+                    : m_SimulationGoal;
+            direction = nextWaypoint - m_SimulatedRobotPosition;
+            direction.y = 0.0f;
             m_SimulationAction = "Navigate to goal";
         }
         else
@@ -1065,43 +1321,6 @@ namespace Mara
                        position + halfExtents);
         };
         glm::vec3 selectedCandidate = candidate;
-        if (isBlocked(selectedCandidate) && m_AutonomousNavigation)
-        {
-            const float currentDistance = glm::length(
-                glm::vec2(
-                    m_SimulationGoal.x - m_SimulatedRobotPosition.x,
-                    m_SimulationGoal.z - m_SimulatedRobotPosition.z));
-            float bestDistance = currentDistance;
-            bool foundDetour = false;
-            for (const float turn : {-0.9f, 0.9f})
-            {
-                const float cosTurn = std::cos(turn);
-                const float sinTurn = std::sin(turn);
-                const glm::vec3 detourDirection(
-                    direction.x * cosTurn + direction.z * sinTurn,
-                    0.0f,
-                    -direction.x * sinTurn + direction.z * cosTurn);
-                const glm::vec3 detourCandidate =
-                    m_SimulatedRobotPosition +
-                    detourDirection * m_SimulationSpeed * deltaTime;
-                const float detourDistance = glm::length(
-                    glm::vec2(
-                        m_SimulationGoal.x - detourCandidate.x,
-                        m_SimulationGoal.z - detourCandidate.z));
-                if (!isBlocked(detourCandidate) && detourDistance < bestDistance)
-                {
-                    selectedCandidate = detourCandidate;
-                    direction = detourDirection;
-                    bestDistance = detourDistance;
-                    foundDetour = true;
-                }
-            }
-            if (!foundDetour)
-            {
-                m_AutonomousNavigation = false;
-                m_SimulationAction = "Navigation blocked";
-            }
-        }
         m_SimulatedRobotYaw = std::atan2(direction.x, direction.z);
         if (isBlocked(selectedCandidate))
         {
@@ -1144,6 +1363,15 @@ namespace Mara
     {
         if (!m_Initialized)
             return;
+
+        {
+            std::lock_guard<std::mutex> lock(m_PathMutex);
+            m_StopPathfindingThread = true;
+            m_PathRequestPending = false;
+        }
+        m_PathCondition.notify_one();
+        if (m_PathfindingThread.joinable())
+            m_PathfindingThread.join();
 
         if (m_RemoteCameraTexture != 0)
         {
