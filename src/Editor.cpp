@@ -135,15 +135,15 @@ namespace Mara
         // Geometry
         // ------------------------------------------------------------
 
-        style.WindowRounding = 10.0f;
+        style.WindowRounding = 12.0f;
         style.WindowMenuButtonPosition = ImGuiDir_None; // Hide the default title-bar window/menu drag icon.
         style.DockingSeparatorSize = 5.0f;
-        style.ChildRounding = 9.0f;
-        style.FrameRounding = 6.0f;
-        style.PopupRounding = 8.0f;
-        style.ScrollbarRounding = 6.0f;
-        style.GrabRounding = 6.0f;
-        style.TabRounding = 7.0f;
+        style.ChildRounding = 11.0f;
+        style.FrameRounding = 7.0f;
+        style.PopupRounding = 10.0f;
+        style.ScrollbarRounding = 7.0f;
+        style.GrabRounding = 7.0f;
+        style.TabRounding = 9.0f;
 
         style.WindowBorderSize = 1.0f;
         style.ChildBorderSize = 1.0f;
@@ -151,7 +151,7 @@ namespace Mara
         style.FrameBorderSize = 1.0f;
         style.TabBorderSize = 0.0f;
 
-        style.WindowPadding = ImVec2(16.0f, 14.0f);
+        style.WindowPadding = ImVec2(18.0f, 16.0f);
         style.FramePadding = ImVec2(10.0f, 7.0f);
         style.ItemSpacing = ImVec2(9.0f, 7.0f);
         style.ItemInnerSpacing = ImVec2(6.0f, 4.0f);
@@ -170,30 +170,30 @@ namespace Mara
 
         // Background hierarchy
         colors[ImGuiCol_WindowBg] =
-            ImVec4(0.95f, 0.96f, 0.97f, 1.00f);
+            ImVec4(0.96f, 0.97f, 0.985f, 1.00f);
 
         colors[ImGuiCol_ChildBg] =
-            ImVec4(0.98f, 0.985f, 0.995f, 1.00f);
+            ImVec4(0.995f, 0.997f, 1.00f, 1.00f);
 
         colors[ImGuiCol_PopupBg] =
             ImVec4(0.99f, 0.99f, 1.00f, 0.99f);
 
         colors[ImGuiCol_MenuBarBg] =
-            ImVec4(0.86f, 0.88f, 0.92f, 1.00f);
+            ImVec4(0.84f, 0.87f, 0.93f, 1.00f);
 
         // Window title bars
         colors[ImGuiCol_TitleBg] =
-            ImVec4(0.86f, 0.88f, 0.92f, 1.00f);
+            ImVec4(0.86f, 0.89f, 0.95f, 1.00f);
 
         colors[ImGuiCol_TitleBgActive] =
-            ImVec4(0.76f, 0.84f, 0.94f, 1.00f);
+            ImVec4(0.78f, 0.87f, 0.97f, 1.00f);
 
         colors[ImGuiCol_TitleBgCollapsed] =
-            ImVec4(0.86f, 0.88f, 0.92f, 1.00f);
+            ImVec4(0.86f, 0.89f, 0.95f, 1.00f);
 
         // Borders / separators
         colors[ImGuiCol_Border] =
-            ImVec4(0.78f, 0.80f, 0.84f, 1.00f);
+            ImVec4(0.72f, 0.77f, 0.86f, 1.00f);
 
         colors[ImGuiCol_BorderShadow] =
             ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
@@ -298,7 +298,7 @@ namespace Mara
             ImVec4(0.25f, 0.48f, 0.78f, 0.35f);
 
         colors[ImGuiCol_DockingEmptyBg] =
-            ImVec4(0.90f, 0.91f, 0.94f, 1.00f);
+            ImVec4(0.84f, 0.87f, 0.92f, 1.00f);
 
         // Optional font family setup. Keep the font files in resources/fonts.
         // The built-in font remains a safe fallback if any file is absent.

@@ -54,6 +54,34 @@ namespace Mara
         {
             ImGui::TextColored(color, "%s", label);
         }
+
+        struct TelemetryHealth
+        {
+            std::size_t motorFaults = 0;
+            std::uint32_t firstMotorError = 0;
+            float highestMotorTemperature = 0.0f;
+            bool bodyControlRunning = false;
+            bool processRunning = false;
+        };
+
+        TelemetryHealth inspectTelemetry(const RosTelemetrySnapshot &snapshot)
+        {
+            TelemetryHealth health;
+            for (const MotorTelemetry &motor : snapshot.motors)
+            {
+                if (motor.error != 0)
+                {
+                    ++health.motorFaults;
+                    if (health.firstMotorError == 0)
+                        health.firstMotorError = motor.error;
+                }
+                health.highestMotorTemperature =
+                    std::max(health.highestMotorTemperature, motor.temperature);
+            }
+            health.bodyControlRunning = snapshot.bodyControlState == 1;
+            health.processRunning = snapshot.processState == 1;
+            return health;
+        }
     }
 
     void Editor::setupDockspace()
@@ -256,7 +284,23 @@ namespace Mara
                 ? ImVec4(0.15f, 0.58f, 0.36f, 1.0f)
                 : ImVec4(0.55f, 0.36f, 0.36f, 1.0f));
         ImGui::SameLine();
-        drawStatusBadge("SAFE", ImVec4(0.15f, 0.58f, 0.36f, 1.0f));
+        const bool telemetryLive =
+            m_TelemetryClient.connected() && !m_TelemetryClient.stale();
+        const RosTelemetrySnapshot &telemetry = m_TelemetryClient.snapshot();
+        const TelemetryHealth health = inspectTelemetry(telemetry);
+        const bool telemetryFault =
+            telemetryLive &&
+            (health.motorFaults > 0 ||
+             !health.bodyControlRunning ||
+             !health.processRunning);
+        drawStatusBadge(
+            !telemetryLive ? "HEALTH UNKNOWN"
+                           : telemetryFault ? "HEALTH FAULT" : "HEALTH OK",
+            !telemetryLive
+                ? ImVec4(0.55f, 0.36f, 0.36f, 1.0f)
+                : telemetryFault
+                      ? ImVec4(0.75f, 0.22f, 0.20f, 1.0f)
+                      : ImVec4(0.15f, 0.58f, 0.36f, 1.0f));
 
         ImGui::EndMainMenuBar();
     }
@@ -1750,6 +1794,7 @@ namespace Mara
 
         const auto &snapshot = m_TelemetryClient.snapshot();
         const bool live = m_TelemetryClient.connected() && !m_TelemetryClient.stale();
+        const TelemetryHealth health = inspectTelemetry(snapshot);
         ImGui::TextColored(
             live ? ImVec4(0.15f, 0.58f, 0.36f, 1.0f)
                  : ImVec4(0.55f, 0.36f, 0.36f, 1.0f),
@@ -1758,12 +1803,37 @@ namespace Mara
         ImGui::TextDisabled("Frames: %llu", static_cast<unsigned long long>(snapshot.sequence));
         ImGui::Separator();
 
+        const bool healthFault =
+            live &&
+            (health.motorFaults > 0 ||
+             !health.bodyControlRunning ||
+             !health.processRunning);
+        ImGui::TextColored(
+            !live ? ImVec4(0.55f, 0.36f, 0.36f, 1.0f)
+                  : healthFault ? ImVec4(0.75f, 0.22f, 0.20f, 1.0f)
+                                : ImVec4(0.15f, 0.58f, 0.36f, 1.0f),
+            !live ? "HEALTH UNKNOWN"
+                  : healthFault ? "HEALTH FAULT DETECTED" : "HEALTH OK");
+        ImGui::SameLine();
+        ImGui::TextDisabled(
+            "Motor faults: %zu",
+            health.motorFaults);
+        if (health.motorFaults > 0)
+            ImGui::TextColored(
+                ImVec4(0.75f, 0.22f, 0.20f, 1.0f),
+                "First motor error code: %u",
+                health.firstMotorError);
         ImGui::Text(
             "Body control: %s",
-            snapshot.bodyControlState == 1 ? "RUNNING" : "UNKNOWN/OFFLINE");
+            health.bodyControlRunning ? "RUNNING" : "UNKNOWN/OFFLINE");
         ImGui::Text(
             "Process manager: %s",
-            snapshot.processState == 1 ? "RUNNING" : "UNKNOWN/OFFLINE");
+            health.processRunning ? "RUNNING" : "UNKNOWN/OFFLINE");
+        ImGui::Text(
+            "Highest motor temperature: %.1f C",
+            health.highestMotorTemperature);
+        ImGui::Separator();
+
         ImGui::Text(
             "Battery: %.1f V  %.1f A  %.1f W",
             snapshot.batteryVoltage,
@@ -1774,6 +1844,8 @@ namespace Mara
             snapshot.imuRoll,
             snapshot.imuPitch,
             snapshot.imuYaw);
+        ImGui::TextDisabled(
+            "Battery percentage is not provided by the read-only telemetry stream.");
         ImGui::Checkbox(
             "Apply healthy motor feedback to model",
             &m_ApplyTelemetryToRobot);
