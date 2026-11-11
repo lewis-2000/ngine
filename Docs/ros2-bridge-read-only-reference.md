@@ -2,18 +2,19 @@
 
 This document records the robot-side ROS 2 information gathered for NGine. It
 is intended as a reference before implementing the bridge. The current scope is
-read-only telemetry only.
+read-only telemetry by default, with a bounded opt-in right-arm motor test command.
 
 ## Safety boundary
 
 The bridge must not publish motion commands or call motor lifecycle services by
-default. Live movement remains blocked until the vendor confirms command units,
+default. The right-arm motor test requires both the relay
+`--enable-command-publishing` option and the Animation workspace publishing
+checkbox. Live movement remains blocked until the vendor confirms command units,
 joint mapping, limits, watchdog behavior, and safety requirements.
 
 Do not currently use:
 
 ```text
-/arm/cmd_pos
 /leg/cmd_pos
 /head/cmd_pos
 /waist/cmd_pos
@@ -209,14 +210,18 @@ ROS feedback topics
 ```
 
 It should include stale-data detection, error reporting, and a clear
-disconnected state. Command publishers should be absent or hard-disabled in the
-initial implementation, rather than merely hidden from the UI.
+disconnected state. Command publishing remains hard-disabled unless the relay
+flag and the UI opt-in are both enabled.
 
 ## Initial NGine telemetry relay
 
 The initial implementation keeps ROS 2 on the robot computer and uses a
-newline-delimited JSON/TCP relay to NGine. The relay is read-only: it creates
-subscriptions only and does not publish ROS messages or call services.
+newline-delimited JSON/TCP relay to NGine. The relay creates subscriptions
+only by default. When command publishing is explicitly enabled, NGine can send
+`{"type":"right_arm_motor_command","motor_id":21,"position":...}` and the relay
+publishes one `bodyctrl_msgs/msg/SetMotorPosition` in a
+`bodyctrl_msgs/msg/CmdSetMotorPosition` message on `/arm/cmd_pos`. The UI
+allows motor IDs 21 through 27.
 
 The relay source is [ros2_telemetry_relay.py](../scripts/ros2_telemetry_relay.py).
 After sourcing ROS 2 and the vendor workspace on the robot computer, start it
@@ -232,13 +237,13 @@ python3 /path/to/ngine/scripts/ros2_telemetry_relay.py \
 ```
 
 The relay also subscribes read-only to the confirmed RGB camera topic
-`/camera/color/image_raw/compressed` (`sensor_msgs/msg/CompressedImage`).
+`/ob_camera_head/color/image_raw/compressed` (`sensor_msgs/msg/CompressedImage`).
 It forwards the latest JPEG payload as base64 in the telemetry JSON under
 `camera_jpeg`, limited to `--camera-rate` frames per second. NGine decodes the
 frame and displays it in **View > Camera preview** while preserving its aspect
 ratio. No camera-control service is called.
 
-The relay also subscribes read-only to `/camera/depth/image_raw`
+The relay also subscribes read-only to `/ob_camera_head/depth/image_raw`
 (`sensor_msgs/msg/Image`) when the encoding is `16UC1` and little-endian. The
 raw depth bytes are downsampled by `--depth-scale` in each dimension and
 forwarded as base64 under `depth_raw16`, with `depth_width` and `depth_height`.
@@ -247,11 +252,17 @@ The display normalization is for
 visualization only; the depth unit still needs to be confirmed from the
 camera's calibration/driver documentation.
 
+The relay discovers the remaining topics reported by the robot at startup and
+subscribes to them read-only using their advertised ROS message types. Their
+receive counts are included in `topic_counts`; NGine can add payload handling
+for those topics later without changing the ROS subscription layer.
+
 NGine connects to the Ubuntu host at `192.168.41.1:8765` by default, matching the
 current SSH connection `ubuntu@192.168.41.1`. If the host address changes, the
 client default in `RosTelemetryClient.h` must be updated before rebuilding.
 The relay should be protected by a firewall or restricted to a trusted
-interface; it contains no authentication.
+interface; it contains no authentication. The right-arm command range and units
+are provisional because the vendor position units still need confirmation.
 
 The relay accepts one NGine client at a time. If the client disconnects, its
 socket is closed while the ROS subscriptions remain active; the relay then
@@ -272,13 +283,17 @@ Each line sent to NGine has this shape:
             "temperature":36.0,"error":0}]}
 ```
 
-The NGine `Robot telemetry` panel is read-only and displays connection state,
+The NGine `Robot telemetry` panel displays connection state,
 body-control/process state, battery/IMU values, and motor telemetry. The
-command topics remain unused.
+**ROS command console** stages node/topic/leaf values and shows the safety
+gates before transmission. Only `/arm/cmd_pos` is currently wired to the
+bounded right-arm test command; the other known command routes are UI
+placeholders until their message adapters are verified.
 
 When enabled in the panel, healthy feedback positions can also drive the
 simulated model for visual comparison. This is an explicit opt-in display
-feature; it does not publish commands back to ROS 2. The current mapping uses
+feature; the right-arm motor test is the only UI path that can publish commands back
+to ROS 2. The current mapping uses
 the vendor configuration order for the arms and legs, plus the waist motor:
 
 ```text

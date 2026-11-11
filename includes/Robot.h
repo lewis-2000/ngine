@@ -33,6 +33,10 @@ public:
         const std::string &linkName,
         const glm::mat4 &robotTransform,
         const glm::mat4 &worldTransform);
+    bool setJointRotationFromWorldTransform(
+        const std::string &linkName,
+        const glm::mat4 &robotTransform,
+        const glm::mat4 &worldTransform);
     void resetJointPositions();
     void updateDemoAnimation(float elapsedTime);
     void updateDemoAnimation(float elapsedTime, const std::string &selectedLink);

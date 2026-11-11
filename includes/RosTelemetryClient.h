@@ -54,6 +54,7 @@ namespace Mara
         void shutdown();
 
         bool connect(const std::string &host, std::uint16_t port);
+        bool publishRightArmMotorPosition(int motorId, float position);
         bool connected() const;
         bool hasData() const;
         bool stale() const;
@@ -80,6 +81,7 @@ namespace Mara
         RosTelemetrySnapshot m_PendingSnapshot;
         bool m_PendingData = false;
         mutable std::mutex m_StateMutex;
+        mutable std::mutex m_SendMutex;
         std::atomic<bool> m_StopRequested = false;
         std::thread m_ReceiveThread;
         std::uint64_t m_LastDataTimeMs = 0;

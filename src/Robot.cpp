@@ -114,17 +114,17 @@ const UrdfJoint *Robot::jointForChildLink(const std::string &linkName) const
             return &joint;
     }
 
-        return nullptr;
-    }
+    return nullptr;
+}
 
-    bool Robot::setJointAxis(const std::string &jointName, const glm::vec3 &axis)
-    {
-        const auto jointIt = m_Robot.joints.find(jointName);
-        if (jointIt == m_Robot.joints.end() || glm::length(axis) <= 0.0001f)
-            return false;
+bool Robot::setJointAxis(const std::string &jointName, const glm::vec3 &axis)
+{
+    const auto jointIt = m_Robot.joints.find(jointName);
+    if (jointIt == m_Robot.joints.end() || glm::length(axis) <= 0.0001f)
+        return false;
 
-        jointIt->second.axis = glm::normalize(axis);
-        return true;
+    jointIt->second.axis = glm::normalize(axis);
+    return true;
 }
 
 void Robot::resetJointPositions()
@@ -302,5 +302,28 @@ bool Robot::setJointFrameWorldTransform(
 
     jointIt->second.origin.xyz = translation;
     jointIt->second.origin.rpy = glm::eulerAngles(rotation);
+    return true;
+}
+
+bool Robot::setJointRotationFromWorldTransform(
+    const std::string &linkName,
+    const glm::mat4 &robotTransform,
+    const glm::mat4 &worldTransform)
+{
+    const UrdfJoint *joint = jointForChildLink(linkName);
+    if (!joint || joint->type != UrdfJoint::Type::REVOLUTE)
+        return false;
+
+    const glm::vec3 axis = glm::length(joint->axis) > 0.0f
+                               ? glm::normalize(joint->axis)
+                               : glm::vec3(1.0f, 0.0f, 0.0f);
+    const glm::mat4 currentWorld = linkWorldTransform(linkName, robotTransform);
+    const glm::mat3 deltaMatrix = glm::mat3(glm::inverse(currentWorld) * worldTransform);
+    const glm::quat deltaRotation = glm::normalize(glm::quat_cast(deltaMatrix));
+    const float axisAngle = 2.0f * std::atan2(
+                                       glm::dot(glm::vec3(deltaRotation.x, deltaRotation.y, deltaRotation.z), axis),
+                                       deltaRotation.w);
+
+    setJointPosition(joint->name, jointPosition(joint->name) + axisAngle);
     return true;
 }

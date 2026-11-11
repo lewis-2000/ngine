@@ -1,5 +1,7 @@
 build/
 internal/
+_CPack_Packages/
+ngine-*.zip
 
 # Files too big for github size limit
 resources/models/robot/i-robot obj.obj
@@ -8,3 +10,5 @@ resources/models/robot/i-robot obj.obj
 .vs/
 
 .VSCodeCounter/
+
+*.zip

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project("ngine")
+project("ngine" VERSION 0.1.0)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -108,6 +108,22 @@ add_custom_target(copy_runtime_assets ALL
 )
 
 add_dependencies(${PROJECT_NAME} copy_runtime_assets)
+
+install(TARGETS ${PROJECT_NAME}
+    RUNTIME DESTINATION .
+)
+
+install(DIRECTORY resources DESTINATION .)
+install(DIRECTORY shaders DESTINATION .)
+install(FILES README.md DESTINATION .)
+
+set(CPACK_GENERATOR "ZIP")
+set(CPACK_PACKAGE_NAME "ngine")
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_PACKAGE_FILE_NAME
+    "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY TRUE)
+include(CPack)
 
 if(NGINE_BUILD_TESTS)
     enable_testing()

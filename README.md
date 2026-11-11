@@ -5,7 +5,8 @@ NGine is a C++20/OpenGL robotics visualization application with two separate wor
 - **Animation workspace** — inspect the robot model, edit joints, preview animations, and review telemetry.
 - **Simulation workspace** — visualize depth data, inspect a persistent map, and drive a local robot proxy through a generated collision environment.
 
-The ROS 2 integration is read-only. NGine does not publish motor commands or call robot-control services.
+The ROS 2 integration is read-only by default. An explicitly enabled head-motor
+test can publish a provisional position command.
 
 ![NGine editor viewport](Docs/AppEditorUpdated.png)
 ![NGine editor simulation Workspace Early Screenshot](Docs/Simulation_Early_Screenshot.png)
@@ -18,6 +19,7 @@ The ROS 2 integration is read-only. NGine does not publish motor commands or cal
 - [Requirements](#requirements)
 - [Installation (Windows)](#installation-windows)
 - [Build](#build)
+- [Package a Release](#package-a-release)
 - [Run](#run)
 - [Workspaces](#workspaces)
 - [ROS 2 Telemetry Bridge](#ros-2-telemetry-bridge)
@@ -42,6 +44,8 @@ Short recordings showing the app running (a proof of life). They do not cover ev
 - Orbit, pan, and zoom navigation in the robot viewport and map viewport
 - Joint controls and demo animation playback
 - Live read-only motor, power, IMU, and controller-state telemetry
+- ROS command console for staging node/topic/leaf values with explicit safety gates
+- Opt-in right-arm motor position slider for publishing bounded test commands
 - RGB and depth camera previews
 - Persistent voxel occupancy maps with save/load support
 - Live depth-map accumulation from the ROS 2 depth stream
@@ -124,6 +128,25 @@ build/resources/
 | Rebuild after code changes | `cmake --build build` |
 | Regenerate after adding/removing source files | `cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release` |
 
+## Package a Release
+
+Configure a clean Release build, build it, and create a self-contained ZIP
+containing `ngine.exe`, `resources/`, `shaders/`, and this README:
+
+```bash
+cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build-release
+cmake --install build-release --prefix package/ngine
+cd build-release
+cpack -G ZIP
+```
+
+The ZIP is written to the current source directory with a platform-specific
+name such as `ngine-0.1.0-Windows-AMD64.zip`. Extract it and run `ngine.exe`
+from the extracted directory. The package does not include ROS 2; the optional telemetry
+relay is distributed separately as `scripts/ros2_telemetry_relay.py` and
+requires the robot's ROS 2 environment.
+
 ## Run
 
 Run from the repository root so relative shader, font, and model paths resolve:
@@ -172,7 +195,13 @@ Click the 2D top view to place an interactive goal marker. It is visualization-o
 
 ## ROS 2 Telemetry Bridge
 
-NGine can display live telemetry from the robot's ROS 2 computer. The relay is **read-only**: it subscribes to ROS 2 feedback topics and never publishes motor commands or calls motor services.
+NGine can display live telemetry from the robot's ROS 2 computer. The relay is **read-only** by default: it subscribes to ROS 2 feedback topics
+and never publishes motor commands or calls motor services. To opt in to the
+right-arm motor test, start it with `--enable-command-publishing`; then enable
+publishing in the Animation workspace before selecting motor 21-27 and moving
+the slider. The slider sends positions in the provisional vendor range -180 to
+180.
+The command speed/current fields are fixed to 1.0/0.0 for this test.
 
 ### Placeholders used below
 
@@ -243,6 +272,9 @@ cd build
 2. Confirm the panel shows **LIVE DATA** and increasing frame counts.
 3. Open **View > Camera preview** to see the RGB stream.
 4. Optionally enable **Apply healthy motor feedback to model**.
+5. Open **ROS command console** to stage a command route. Only
+   `/arm/cmd_pos` is currently wired for transmission; the other known routes
+   are displayed as UI placeholders until their message adapters are verified.
 
 The last option applies healthy, read-only motor positions to the simulated robot for visual comparison. Nothing is sent back to ROS 2. Position values are shown and applied as vendor-reported values; no degree/radian conversion is performed.
 
@@ -250,10 +282,13 @@ The last option applies healthy, read-only motor positions to the simulated robo
 
 | Stream | ROS topic | Format |
 | --- | --- | --- |
-| RGB | `/camera/color/image_raw/compressed` | JPEG |
-| Depth | `/camera/depth/image_raw` | `16UC1`, downsampled 4x per dimension |
+| RGB | `/ob_camera_head/color/image_raw/compressed` | JPEG |
+| Depth | `/ob_camera_head/depth/image_raw` | `16UC1`, downsampled 4x per dimension |
 
 - Both are rate-limited to 1 frame per second by default.
+- The relay also discovers and subscribes to the other topics reported by the
+  robot, retaining lightweight receive counters in `topic_counts` for future
+  consumers. NGine currently uses only the RGB and depth payloads.
 - Use the **RGB** and **Depth** tabs in the camera preview; aspect ratios are preserved.
 - RGB falls back to the local camera preview if no ROS frame is available.
 - The detailed preview reports received frame dimensions but does not request higher resolution. The relay keeps only the newest frame, so opening it adds no network or decode load.

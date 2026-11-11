@@ -348,7 +348,7 @@ namespace Mara
 
         m_StopPathfindingThread = false;
         m_PathfindingThread = std::thread([this]
-        {
+                                          {
             std::unique_lock<std::mutex> lock(m_PathMutex);
             while (true)
             {
@@ -376,8 +376,7 @@ namespace Mara
                     m_PathResultGeneration = request.generation;
                     m_PathResultReady = true;
                 }
-            }
-        });
+            } });
         m_Initialized = true;
     }
 
@@ -812,6 +811,65 @@ namespace Mara
         m_AnimationStatus = "Previewing " + clip.name;
     }
 
+    void Editor::selectLinkAt(
+        const glm::vec2 &mousePosition,
+        const glm::vec2 &viewportMin,
+        const glm::vec2 &viewportSize)
+    {
+        if (!m_Robot || !m_Robot->isLoaded() ||
+            viewportSize.x <= 0.0f || viewportSize.y <= 0.0f)
+            return;
+
+        float closestDistanceSquared = 64.0f * 64.0f;
+        std::string closestLink;
+        for (const auto &[linkName, link] : m_Robot->data().links)
+        {
+            const glm::vec4 clipPosition =
+                m_GizmoProjection * m_GizmoView *
+                m_Robot->linkWorldTransform(linkName, m_RobotTransform) *
+                glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+            if (clipPosition.w <= 0.0f)
+                continue;
+
+            const glm::vec3 normalized = glm::vec3(clipPosition) / clipPosition.w;
+            if (normalized.z < -1.0f || normalized.z > 1.0f)
+                continue;
+
+            const glm::vec2 projected(
+                viewportMin.x + (normalized.x * 0.5f + 0.5f) * viewportSize.x,
+                viewportMin.y + (1.0f - (normalized.y * 0.5f + 0.5f)) * viewportSize.y);
+            const glm::vec2 delta = projected - mousePosition;
+            const float distanceSquared = glm::dot(delta, delta);
+            if (distanceSquared < closestDistanceSquared)
+            {
+                closestDistanceSquared = distanceSquared;
+                closestLink = linkName;
+            }
+        }
+
+        if (!closestLink.empty())
+        {
+            m_SelectedLink = std::move(closestLink);
+            m_AnimationStatus = "Selected " + m_SelectedLink;
+        }
+    }
+
+    void Editor::nudgeSelectedJoint(float amount)
+    {
+        if (!m_Robot || !m_Robot->isLoaded())
+            return;
+
+        const UrdfJoint *joint = m_Robot->jointForChildLink(m_SelectedLink);
+        if (!joint || joint->type == UrdfJoint::Type::FIXED)
+            return;
+
+        m_SimulationRunning = false;
+        m_Robot->setJointPosition(
+            joint->name,
+            m_Robot->jointPosition(joint->name) + amount);
+        m_AnimationStatus = "Edited " + joint->name;
+    }
+
     void Editor::refreshDemoAnimation()
     {
         if (!m_Robot || !m_Robot->isLoaded())
@@ -920,8 +978,6 @@ namespace Mara
         m_CameraResetRequested = false;
         return requested;
     }
-
-
 
     void Editor::enterSimulationWorkspace()
     {
@@ -1079,9 +1135,7 @@ namespace Mara
         std::unordered_map<Cell, Cell, CellHash> parent;
         open.push({0.0f, start});
         cost[start] = 0.0f;
-        constexpr std::array<Cell, 8> neighbors{{
-            {-1, 0}, {1, 0}, {0, -1}, {0, 1},
-            {-1, -1}, {-1, 1}, {1, -1}, {1, 1}}};
+        constexpr std::array<Cell, 8> neighbors{{{-1, 0}, {1, 0}, {0, -1}, {0, 1}, {-1, -1}, {-1, 1}, {1, -1}, {1, 1}}};
         while (!open.empty())
         {
             const Cell current = open.top().cell;
@@ -1216,8 +1270,7 @@ namespace Mara
                         nearestDistance = std::min(nearestDistance, hitDistance);
                 }
                 if (nearestDistance < m_SyntheticDepthRange)
-                    m_SyntheticDepth[
-                        static_cast<std::size_t>(y) * m_SyntheticDepthWidth + x] =
+                    m_SyntheticDepth[static_cast<std::size_t>(y) * m_SyntheticDepthWidth + x] =
                         static_cast<std::uint16_t>(
                             std::clamp(nearestDistance * 1000.0f, 1.0f, 65535.0f));
             }
@@ -1326,9 +1379,9 @@ namespace Mara
         {
             m_SimulationStatus = isBlockedByTestMap(selectedCandidate)
                                      ? "Collision blocked: test obstacle"
-                                     : isBlockedBySensorMap(selectedCandidate)
-                                           ? "Collision blocked: live depth"
-                                           : "Collision blocked";
+                                 : isBlockedBySensorMap(selectedCandidate)
+                                     ? "Collision blocked: live depth"
+                                     : "Collision blocked";
         }
         else
         {
@@ -1338,26 +1391,6 @@ namespace Mara
                                      : "Moving";
         }
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     void Editor::shutdown()
     {

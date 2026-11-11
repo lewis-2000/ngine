@@ -90,6 +90,7 @@ namespace Mara
         void drawConsole();
         void drawPosePanel();
         void drawTelemetry();
+        void drawRosCommandConsole();
         void drawMapPanel();
         void drawSimulationWorkspace();
         void updateSimulation(float deltaTime);
@@ -121,6 +122,11 @@ namespace Mara
         void captureAuthoringKeyframe();
         bool saveAuthoringAnimation();
         void previewAnimation(const AnimationClip &clip);
+        void selectLinkAt(
+            const glm::vec2 &mousePosition,
+            const glm::vec2 &viewportMin,
+            const glm::vec2 &viewportSize);
+        void nudgeSelectedJoint(float amount);
 
     private:
         ImFont *m_FontBody = nullptr;
@@ -143,6 +149,7 @@ namespace Mara
         bool m_MapTopView = true;
         char m_MapPath[260] = "maps/scene.map";
         bool m_ShowMotorTelemetryPanel = false;
+        bool m_ShowRosCommandConsole = false;
         bool m_ApplyTelemetryToRobot = false;
         unsigned int m_RemoteCameraTexture = 0;
         unsigned int m_RemoteDepthTexture = 0;
@@ -176,6 +183,12 @@ namespace Mara
         std::string m_AuthoringName = "new_animation";
         float m_AuthoringDuration = 2.0f;
         float m_AuthoringTime = 0.0f;
+        int m_RightArmMotorId = 21;
+        float m_RightArmMotorPosition = 0.0f;
+        bool m_RightArmMotorPublishingEnabled = false;
+        int m_RosCommandTopicIndex = 0;
+        int m_RosCommandMotorId = 21;
+        float m_RosCommandPosition = 0.0f;
         std::uint64_t m_LastTelemetrySequence = 0;
         std::uint64_t m_LastMappedDepthSequence = 0;
         bool m_TelemetryErrorLatched = false;

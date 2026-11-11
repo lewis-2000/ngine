@@ -7,6 +7,7 @@
 #include <cerrno>
 #include <regex>
 #include <sstream>
+#include <cmath>
 
 #include <stb_image.h>
 
@@ -134,6 +135,45 @@ namespace Mara
         return m_Connected;
     }
 
+    bool RosTelemetryClient::publishRightArmMotorPosition(
+        int motorId,
+        float position)
+    {
+        if (motorId < 21 || motorId > 27 || !std::isfinite(position))
+            return false;
+
+        const std::string command =
+            "{\"type\":\"right_arm_motor_command\",\"motor_id\":" +
+            std::to_string(motorId) +
+            ",\"position\":" + std::to_string(position) + "}\n";
+
+        std::lock_guard<std::mutex> sendLock(m_SendMutex);
+        if (!connected())
+            return false;
+
+        std::size_t offset = 0;
+        while (offset < command.size())
+        {
+#ifdef _WIN32
+            const int count = send(
+                static_cast<SOCKET>(m_Socket),
+                command.data() + offset,
+                static_cast<int>(command.size() - offset),
+                0);
+#else
+            const int count = send(
+                static_cast<int>(m_Socket),
+                command.data() + offset,
+                command.size() - offset,
+                0);
+#endif
+            if (count <= 0)
+                return false;
+            offset += static_cast<std::size_t>(count);
+        }
+        return true;
+    }
+
     bool RosTelemetryClient::hasData() const
     {
         std::lock_guard<std::mutex> lock(m_StateMutex);
@@ -229,6 +269,7 @@ namespace Mara
 
     void RosTelemetryClient::shutdown()
     {
+        std::lock_guard<std::mutex> sendLock(m_SendMutex);
         m_StopRequested = true;
         closeSocket(m_Socket);
         if (m_ReceiveThread.joinable())

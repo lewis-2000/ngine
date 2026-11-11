@@ -128,21 +128,21 @@ namespace Mara
         ImGui::DockBuilderSplitNode(workNode, ImGuiDir_Right, 0.23f,
                                     &inspectorNode, &centerNode);
 
-        ImGuiID bottomNode = 0;
-        ImGuiID centerNodeWithBottom = 0;
-        ImGui::DockBuilderSplitNode(centerNode, ImGuiDir_Down, 0.22f,
-                                    &bottomNode, &centerNodeWithBottom);
-
+        // Keep the viewport in the central node so it uses the full height.
+        // The two side nodes are tab groups for related editor panels.
         ImGui::DockBuilderDockWindow("World", sideNode);
+        ImGui::DockBuilderDockWindow("Animation", sideNode);
         ImGui::DockBuilderDockWindow("Inspector", inspectorNode);
-        ImGui::DockBuilderDockWindow("Viewport", centerNodeWithBottom);
-        ImGui::DockBuilderDockWindow("Animation", bottomNode);
-        ImGui::DockBuilderDockWindow("Robot telemetry", bottomNode);
-        ImGui::DockBuilderDockWindow("Console", bottomNode);
+        ImGui::DockBuilderDockWindow("Robot telemetry", inspectorNode);
+        ImGui::DockBuilderDockWindow("Console", inspectorNode);
+        ImGui::DockBuilderDockWindow("Viewport", centerNode);
+
+        if (ImGuiDockNode *sideNodePtr = ImGui::DockBuilderGetNode(sideNode))
+            sideNodePtr->SelectedTabId = ImHashStr("Animation");
 
         // Select the scene viewport as the initial center document tab.
         // This is used when the default dock layout is first generated.
-        if (ImGuiDockNode *centerNodePtr = ImGui::DockBuilderGetNode(centerNodeWithBottom))
+        if (ImGuiDockNode *centerNodePtr = ImGui::DockBuilderGetNode(centerNode))
             centerNodePtr->SelectedTabId = ImHashStr("Viewport");
 
         // Finish building the layout
@@ -294,13 +294,14 @@ namespace Mara
              !health.bodyControlRunning ||
              !health.processRunning);
         drawStatusBadge(
-            !telemetryLive ? "HEALTH UNKNOWN"
-                           : telemetryFault ? "HEALTH FAULT" : "HEALTH OK",
+            !telemetryLive   ? "HEALTH UNKNOWN"
+            : telemetryFault ? "HEALTH FAULT"
+                             : "HEALTH OK",
             !telemetryLive
                 ? ImVec4(0.55f, 0.36f, 0.36f, 1.0f)
-                : telemetryFault
-                      ? ImVec4(0.75f, 0.22f, 0.20f, 1.0f)
-                      : ImVec4(0.15f, 0.58f, 0.36f, 1.0f));
+            : telemetryFault
+                ? ImVec4(0.75f, 0.22f, 0.20f, 1.0f)
+                : ImVec4(0.15f, 0.58f, 0.36f, 1.0f));
 
         ImGui::EndMainMenuBar();
     }
@@ -312,7 +313,9 @@ namespace Mara
         ImGui::Begin(
             "Simulation",
             nullptr,
-            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar);
+            ImGuiWindowFlags_NoCollapse |
+                ImGuiWindowFlags_NoScrollbar |
+                ImGuiWindowFlags_NoTitleBar);
         drawPanelHeader("[S]", "SIMULATION WORKSPACE", "DEPTH MAP + COLLISION");
 
         const RosTelemetrySnapshot *depthSnapshot = nullptr;
@@ -365,158 +368,158 @@ namespace Mara
         ImGui::Spacing();
         if (ImGui::CollapsingHeader("Display", ImGuiTreeNodeFlags_DefaultOpen))
         {
-        ImGui::TextDisabled("Fixed frame");
-        const char *fixedFrames[] = {"map", "odom", "base_link"};
-        int fixedFrameIndex = m_SimulationFixedFrame == "odom"
-                                  ? 1
+            ImGui::TextDisabled("Fixed frame");
+            const char *fixedFrames[] = {"map", "odom", "base_link"};
+            int fixedFrameIndex = m_SimulationFixedFrame == "odom"
+                                      ? 1
                                   : m_SimulationFixedFrame == "base_link" ? 2
-                                                                            : 0;
-        ImGui::SetNextItemWidth(-1.0f);
-        if (ImGui::Combo("##SimulationFixedFrame", &fixedFrameIndex, fixedFrames, 3))
-            m_SimulationFixedFrame = fixedFrames[fixedFrameIndex];
-        ImGui::Checkbox("RobotModel (URDF)", &m_ShowSimulationRobot);
-        ImGui::Checkbox("TF frames (derived)", &m_ShowSimulationTf);
-        ImGui::Checkbox("Depth image / points", &m_ShowSimulationDepth);
-        ImGui::Checkbox("Occupancy grid", &m_ShowSimulationMap);
-        ImGui::Checkbox("Interactive goal marker", &m_ShowSimulationMarker);
-        ImGui::TextDisabled(
-            "The bridge supplies joints, IMU, and depth; TF is derived from the loaded URDF.");
+                                                                          : 0;
+            ImGui::SetNextItemWidth(-1.0f);
+            if (ImGui::Combo("##SimulationFixedFrame", &fixedFrameIndex, fixedFrames, 3))
+                m_SimulationFixedFrame = fixedFrames[fixedFrameIndex];
+            ImGui::Checkbox("RobotModel (URDF)", &m_ShowSimulationRobot);
+            ImGui::Checkbox("TF frames (derived)", &m_ShowSimulationTf);
+            ImGui::Checkbox("Depth image / points", &m_ShowSimulationDepth);
+            ImGui::Checkbox("Occupancy grid", &m_ShowSimulationMap);
+            ImGui::Checkbox("Interactive goal marker", &m_ShowSimulationMarker);
+            ImGui::TextDisabled(
+                "The bridge supplies joints, IMU, and depth; TF is derived from the loaded URDF.");
         }
         ImGui::Spacing();
         if (ImGui::CollapsingHeader("Navigation", ImGuiTreeNodeFlags_DefaultOpen))
         {
-        ImGui::TextDisabled("Interaction mode");
-        if (ImGui::Button(
-                m_MapNavigationMode ? "Drive robot" : "Navigate map",
-                ImVec2(-1.0f, 0.0f)))
-            m_MapNavigationMode = !m_MapNavigationMode;
-        ImGui::TextWrapped(
-            m_MapNavigationMode
-                ? "Map navigation is active. Mouse input controls the 3D camera."
-                : "Robot drive is active. WASD and arrow keys move the robot.");
-        const float actionWidth = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
-        if (ImGui::Button("Reset robot", ImVec2(actionWidth, 0.0f)))
-        {
-            m_SimulatedRobotPosition = {-4.0f, 0.25f, -4.0f};
-            m_SimulatedRobotYaw = 0.0f;
-            m_AutonomousNavigation = false;
-            m_SimulationAction = "Idle";
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Clear map", ImVec2(-1.0f, 0.0f)))
-        {
-            m_OccupancyMap.clear();
-            m_LastMappedDepthSequence = 0;
-            m_SimulationPath.clear();
-            invalidateSimulationPath();
-            m_SimulationPathReplanTimer = 0.0f;
-        }
-        if (ImGui::Button(
-                m_AutonomousNavigation ? "Stop navigation" : "Navigate to goal",
-                ImVec2(-1.0f, 0.0f)))
-        {
-            if (m_AutonomousNavigation)
+            ImGui::TextDisabled("Interaction mode");
+            if (ImGui::Button(
+                    m_MapNavigationMode ? "Drive robot" : "Navigate map",
+                    ImVec2(-1.0f, 0.0f)))
+                m_MapNavigationMode = !m_MapNavigationMode;
+            ImGui::TextWrapped(
+                m_MapNavigationMode
+                    ? "Map navigation is active. Mouse input controls the 3D camera."
+                    : "Robot drive is active. WASD and arrow keys move the robot.");
+            const float actionWidth = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) * 0.5f;
+            if (ImGui::Button("Reset robot", ImVec2(actionWidth, 0.0f)))
             {
+                m_SimulatedRobotPosition = {-4.0f, 0.25f, -4.0f};
+                m_SimulatedRobotYaw = 0.0f;
                 m_AutonomousNavigation = false;
                 m_SimulationAction = "Idle";
             }
-            else if (m_HasSimulationGoal)
+            ImGui::SameLine();
+            if (ImGui::Button("Clear map", ImVec2(-1.0f, 0.0f)))
             {
-                m_MapNavigationMode = false;
-                m_AutonomousNavigation = true;
-                m_SimulationAction = "Navigate to goal";
+                m_OccupancyMap.clear();
+                m_LastMappedDepthSequence = 0;
+                m_SimulationPath.clear();
+                invalidateSimulationPath();
+                m_SimulationPathReplanTimer = 0.0f;
             }
-            else
+            if (ImGui::Button(
+                    m_AutonomousNavigation ? "Stop navigation" : "Navigate to goal",
+                    ImVec2(-1.0f, 0.0f)))
             {
-                m_SimulationStatus = "Place a goal marker first";
+                if (m_AutonomousNavigation)
+                {
+                    m_AutonomousNavigation = false;
+                    m_SimulationAction = "Idle";
+                }
+                else if (m_HasSimulationGoal)
+                {
+                    m_MapNavigationMode = false;
+                    m_AutonomousNavigation = true;
+                    m_SimulationAction = "Navigate to goal";
+                }
+                else
+                {
+                    m_SimulationStatus = "Place a goal marker first";
+                }
             }
-        }
-        ImGui::SetNextItemWidth(-1.0f);
-        ImGui::SliderFloat("Speed", &m_SimulationSpeed, 0.25f, 5.0f, "%.2f m/s");
-        if (ImGui::Button("Restore test obstacles", ImVec2(-1.0f, 0.0f)))
-            resetTestEnvironment();
+            ImGui::SetNextItemWidth(-1.0f);
+            ImGui::SliderFloat("Speed", &m_SimulationSpeed, 0.25f, 5.0f, "%.2f m/s");
+            if (ImGui::Button("Restore test obstacles", ImVec2(-1.0f, 0.0f)))
+                resetTestEnvironment();
         }
         ImGui::Spacing();
         if (ImGui::CollapsingHeader("Sensor bridge", ImGuiTreeNodeFlags_DefaultOpen))
         {
-        ImGui::Checkbox("Use synthetic depth fallback", &m_SyntheticDepthEnabled);
-        const bool bridgeLive =
-            m_TelemetryClient.connected() && !m_TelemetryClient.stale();
-        if (ImGui::Button(
-                m_TelemetryClient.connected() ? "Reconnect bridge" : "Connect bridge",
-                ImVec2(-1.0f, 0.0f)))
-            m_TelemetryClient.connect(
-                m_TelemetryClient.host(),
-                m_TelemetryClient.port());
-        if (bridgeLive)
-            ImGui::TextColored(
-                ImVec4(0.20f, 0.70f, 0.45f, 1.0f),
-                "Depth stream LIVE");
-        else
-            ImGui::TextColored(
-                ImVec4(0.85f, 0.55f, 0.25f, 1.0f),
-                "Waiting for depth bridge");
-        if (depthSnapshot)
-            ImGui::Text(
-                "Depth: %d x %d | frame %llu",
-                depthSnapshot->depthWidth,
-                depthSnapshot->depthHeight,
-                static_cast<unsigned long long>(depthSnapshot->depthSequence));
-        else if (m_SyntheticDepthEnabled)
-            ImGui::Text(
-                "Synthetic depth: %d x %d | frame %llu | range %.1f m",
-                m_SyntheticDepthWidth,
-                m_SyntheticDepthHeight,
-                static_cast<unsigned long long>(m_SyntheticDepthSequence),
-                m_SyntheticDepthRange);
+            ImGui::Checkbox("Use synthetic depth fallback", &m_SyntheticDepthEnabled);
+            const bool bridgeLive =
+                m_TelemetryClient.connected() && !m_TelemetryClient.stale();
+            if (ImGui::Button(
+                    m_TelemetryClient.connected() ? "Reconnect bridge" : "Connect bridge",
+                    ImVec2(-1.0f, 0.0f)))
+                m_TelemetryClient.connect(
+                    m_TelemetryClient.host(),
+                    m_TelemetryClient.port());
+            if (bridgeLive)
+                ImGui::TextColored(
+                    ImVec4(0.20f, 0.70f, 0.45f, 1.0f),
+                    "Depth stream LIVE");
+            else
+                ImGui::TextColored(
+                    ImVec4(0.85f, 0.55f, 0.25f, 1.0f),
+                    "Waiting for depth bridge");
+            if (depthSnapshot)
+                ImGui::Text(
+                    "Depth: %d x %d | frame %llu",
+                    depthSnapshot->depthWidth,
+                    depthSnapshot->depthHeight,
+                    static_cast<unsigned long long>(depthSnapshot->depthSequence));
+            else if (m_SyntheticDepthEnabled)
+                ImGui::Text(
+                    "Synthetic depth: %d x %d | frame %llu | range %.1f m",
+                    m_SyntheticDepthWidth,
+                    m_SyntheticDepthHeight,
+                    static_cast<unsigned long long>(m_SyntheticDepthSequence),
+                    m_SyntheticDepthRange);
         }
         ImGui::Spacing();
         if (ImGui::CollapsingHeader("Status", ImGuiTreeNodeFlags_DefaultOpen))
         {
-        ImGui::Text("Robot position");
-        ImGui::Text("(%.2f, %.2f, %.2f)",
-                    m_SimulatedRobotPosition.x,
-                    m_SimulatedRobotPosition.y,
-                    m_SimulatedRobotPosition.z);
-        ImGui::Text("Live voxels: %zu", m_OccupancyMap.occupiedCount());
-        ImGui::Text("Depth frame: %llu",
-                    static_cast<unsigned long long>(m_LastMappedDepthSequence));
-        ImGui::TextColored(
-            m_SimulationStatus == "Collision blocked"
-                ? ImVec4(0.85f, 0.30f, 0.20f, 1.0f)
-                : ImVec4(0.20f, 0.70f, 0.45f, 1.0f),
-            "%s",
-            m_SimulationStatus.c_str());
-        ImGui::Text("Action: %s", m_SimulationAction.c_str());
-        ImGui::Spacing();
-        ImGui::TextColored(kViewportAccent, "PROXIMITY");
-        ImGui::Text("Test obstacles: %zu", m_SimulationObstacles.size());
-        if (nearestObstacle)
-            ImGui::Text(
-                "Nearest test: %s (%.2f m)",
-                nearestObstacle->name.c_str(),
-                nearestObstacleDistance);
-        ImGui::Text(
-            "Nearest live depth: %s",
-            hasLiveDistance ? (std::to_string(nearestLiveDistance) + " m").c_str() : "none");
-        ImGui::Text(
-            "Goal: %s",
-            m_HasSimulationGoal
-                ? (std::to_string(goalDistance) + " m").c_str()
-                : "not placed");
-        if (ImGui::TreeNode("Object proximity details"))
-        {
-            for (const SimulationObstacle &obstacle : m_SimulationObstacles)
+            ImGui::Text("Robot position");
+            ImGui::Text("(%.2f, %.2f, %.2f)",
+                        m_SimulatedRobotPosition.x,
+                        m_SimulatedRobotPosition.y,
+                        m_SimulatedRobotPosition.z);
+            ImGui::Text("Live voxels: %zu", m_OccupancyMap.occupiedCount());
+            ImGui::Text("Depth frame: %llu",
+                        static_cast<unsigned long long>(m_LastMappedDepthSequence));
+            ImGui::TextColored(
+                m_SimulationStatus == "Collision blocked"
+                    ? ImVec4(0.85f, 0.30f, 0.20f, 1.0f)
+                    : ImVec4(0.20f, 0.70f, 0.45f, 1.0f),
+                "%s",
+                m_SimulationStatus.c_str());
+            ImGui::Text("Action: %s", m_SimulationAction.c_str());
+            ImGui::Spacing();
+            ImGui::TextColored(kViewportAccent, "PROXIMITY");
+            ImGui::Text("Test obstacles: %zu", m_SimulationObstacles.size());
+            if (nearestObstacle)
                 ImGui::Text(
-                    "%s: %.2f m",
-                    obstacle.name.c_str(),
-                    distanceToObstacle(obstacle));
-            ImGui::TreePop();
-        }
-        ImGui::TextWrapped(
-            "3D: right drag orbit, middle drag pan, wheel or +/- zoom. "
-            "Click the 2D view to place a goal marker. "
-            "Orange voxels are test obstacles; blue voxels are live depth data.");
+                    "Nearest test: %s (%.2f m)",
+                    nearestObstacle->name.c_str(),
+                    nearestObstacleDistance);
+            ImGui::Text(
+                "Nearest live depth: %s",
+                hasLiveDistance ? (std::to_string(nearestLiveDistance) + " m").c_str() : "none");
+            ImGui::Text(
+                "Goal: %s",
+                m_HasSimulationGoal
+                    ? (std::to_string(goalDistance) + " m").c_str()
+                    : "not placed");
+            if (ImGui::TreeNode("Object proximity details"))
+            {
+                for (const SimulationObstacle &obstacle : m_SimulationObstacles)
+                    ImGui::Text(
+                        "%s: %.2f m",
+                        obstacle.name.c_str(),
+                        distanceToObstacle(obstacle));
+                ImGui::TreePop();
+            }
+            ImGui::TextWrapped(
+                "3D: right drag orbit, middle drag pan, wheel or +/- zoom. "
+                "Click the 2D view to place a goal marker. "
+                "Orange voxels are test obstacles; blue voxels are live depth data.");
         }
         ImGui::Spacing();
         ImGui::TextDisabled("3D view");
@@ -964,7 +967,7 @@ namespace Mara
 
     void Editor::drawScene()
     {
-        ImGui::Begin("World");
+        ImGui::Begin("World", nullptr, ImGuiWindowFlags_NoTitleBar);
 
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, 6.0f));
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(7.0f, 7.0f));
@@ -1023,58 +1026,14 @@ namespace Mara
         // workspace, while the bright cyan rail marks it as the active tool.
         ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.93f, 0.94f, 0.96f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.42f, 0.52f, 0.68f, 0.95f));
-        ImGui::Begin("Viewport");
+        ImGui::Begin("Viewport", nullptr, ImGuiWindowFlags_NoTitleBar);
 
         ImDrawList *windowDrawList = ImGui::GetWindowDrawList();
         const ImVec2 windowMin = ImGui::GetWindowPos();
-        const float titleHeight = ImGui::GetFrameHeight();
         windowDrawList->AddRectFilled(
-            ImVec2(windowMin.x, windowMin.y + titleHeight),
+            ImVec2(windowMin.x, windowMin.y),
             ImVec2(windowMin.x + 3.0f, windowMin.y + ImGui::GetWindowHeight()),
             IM_COL32(35, 220, 235, 255));
-
-        ImGui::PushFont(m_FontHeading);
-        ImGui::TextColored(ImVec4(0.16f, 0.38f, 0.68f, 1.0f), "SCENE VIEWPORT");
-        ImGui::PopFont();
-        ImGui::SameLine();
-        ImGui::TextDisabled("/  PERSPECTIVE");
-        ImGui::SameLine();
-        ImGui::TextDisabled("/  TIENKUNG ROBOT");
-
-        // Keep navigation controls grouped together on a dedicated toolbar row.
-        ImGui::Spacing();
-        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.82f, 0.85f, 0.90f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.68f, 0.78f, 0.91f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.45f, 0.62f, 0.84f, 1.0f));
-        if (ImGui::Button("Front view"))
-            m_CameraResetRequested = true;
-        ImGui::SameLine();
-        if (ImGui::Button(m_ShowGrid ? "Grid  ON" : "Grid  OFF"))
-            m_ShowGrid = !m_ShowGrid;
-        ImGui::SameLine();
-        if (ImGui::Button(m_ShowSensors ? "Sensors  ON" : "Sensors  OFF"))
-            m_ShowSensors = !m_ShowSensors;
-        ImGui::SameLine();
-        ImGui::Dummy(ImVec2(8.0f, 1.0f));
-        ImGui::SameLine();
-        ImGui::PushStyleColor(ImGuiCol_Button, m_SimulationRunning
-                                                   ? ImVec4(0.42f, 0.25f, 0.08f, 1.0f)
-                                                   : ImVec4(0.18f, 0.34f, 0.55f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_SimulationRunning
-                                                          ? ImVec4(0.58f, 0.34f, 0.10f, 1.0f)
-                                                          : ImVec4(0.28f, 0.46f, 0.70f, 1.0f));
-        if (ImGui::Button(m_SimulationRunning ? "||  Pause simulation" : ">  Run simulation"))
-            m_SimulationRunning = !m_SimulationRunning;
-        ImGui::PopStyleColor(2);
-        ImGui::SameLine();
-        if (ImGui::Button("Reset camera"))
-            m_CameraResetRequested = true;
-        ImGui::PopStyleColor(3);
-        ImGui::PopStyleVar();
-
-        ImGui::Separator();
-        ImGui::Spacing();
 
         ImVec2 viewportSize = ImGui::GetContentRegionAvail();
 
@@ -1108,35 +1067,72 @@ namespace Mara
                 const ImVec2 sceneViewportMin = ImGui::GetItemRectMin();
                 const ImVec2 sceneViewportMax = ImGui::GetItemRectMax();
                 m_ViewportHovered = ImGui::IsItemHovered();
+                if (ImGui::IsItemClicked())
+                {
+                    selectLinkAt(
+                        glm::vec2(
+                            ImGui::GetIO().MouseClickedPos[0].x,
+                            ImGui::GetIO().MouseClickedPos[0].y),
+                        glm::vec2(sceneViewportMin.x, sceneViewportMin.y),
+                        glm::vec2(viewportSize.x, viewportSize.y));
+                }
+
+                if (m_ViewportHovered && !ImGui::GetIO().WantCaptureKeyboard)
+                {
+                    const float step = ImGui::GetIO().KeyShift ? 0.01f : 0.05f;
+                    if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
+                        nudgeSelectedJoint(-step);
+                    if (ImGui::IsKeyPressed(ImGuiKey_RightArrow))
+                        nudgeSelectedJoint(step);
+                }
 
                 if (m_Robot && m_Robot->isLoaded() &&
-                    !m_SelectedLink.empty() &&
-                    m_Robot->jointForChildLink(m_SelectedLink))
+                    !m_SelectedLink.empty())
                 {
-                    ImGuizmo::SetDrawlist();
-                    ImGuizmo::Enable(true);
-                    ImGuizmo::SetOrthographic(false);
-                    ImGuizmo::SetRect(
-                        ImGui::GetItemRectMin().x,
-                        ImGui::GetItemRectMin().y,
-                        viewportSize.x,
-                        viewportSize.y);
-
-                    glm::mat4 jointFrame =
-                        m_Robot->jointFrameWorldTransform(m_SelectedLink, m_RobotTransform);
-                    ImGuizmo::Manipulate(
-                        glm::value_ptr(m_GizmoView),
-                        glm::value_ptr(m_GizmoProjection),
-                        ImGuizmo::ROTATE | ImGuizmo::TRANSLATE,
-                        ImGuizmo::LOCAL,
-                        glm::value_ptr(jointFrame));
-                    if (ImGuizmo::IsUsing())
+                    const UrdfJoint *selectedJoint =
+                        m_Robot->jointForChildLink(m_SelectedLink);
+                    if (selectedJoint && selectedJoint->type != UrdfJoint::Type::FIXED)
                     {
-                        m_Robot->setJointFrameWorldTransform(
+                        ImGuizmo::Style &gizmoStyle = ImGuizmo::GetStyle();
+                        gizmoStyle.Colors[ImGuizmo::DIRECTION_X] =
+                            ImVec4(0.92f, 0.18f, 0.16f, 1.0f);
+                        gizmoStyle.Colors[ImGuizmo::DIRECTION_Y] =
+                            ImVec4(0.20f, 0.78f, 0.28f, 1.0f);
+                        gizmoStyle.Colors[ImGuizmo::DIRECTION_Z] =
+                            ImVec4(0.18f, 0.42f, 0.95f, 1.0f);
+                        gizmoStyle.Colors[ImGuizmo::PLANE_X] =
+                            ImVec4(0.92f, 0.18f, 0.16f, 0.35f);
+                        gizmoStyle.Colors[ImGuizmo::PLANE_Y] =
+                            ImVec4(0.20f, 0.78f, 0.28f, 0.35f);
+                        gizmoStyle.Colors[ImGuizmo::PLANE_Z] =
+                            ImVec4(0.18f, 0.42f, 0.95f, 0.35f);
+                        gizmoStyle.Colors[ImGuizmo::SELECTION] =
+                            ImVec4(1.0f, 0.78f, 0.18f, 1.0f);
+                        glm::mat4 jointFrame = m_Robot->linkWorldTransform(
                             m_SelectedLink,
-                            m_RobotTransform,
-                            jointFrame);
-                        m_SimulationRunning = false;
+                            m_RobotTransform);
+                        ImGuizmo::SetDrawlist();
+                        ImGuizmo::SetRect(
+                            sceneViewportMin.x,
+                            sceneViewportMin.y,
+                            viewportSize.x,
+                            viewportSize.y);
+                        ImGuizmo::SetOrthographic(false);
+                        ImGuizmo::Manipulate(
+                            glm::value_ptr(m_GizmoView),
+                            glm::value_ptr(m_GizmoProjection),
+                            ImGuizmo::ROTATE,
+                            ImGuizmo::LOCAL,
+                            glm::value_ptr(jointFrame));
+                        if (ImGuizmo::IsUsing())
+                        {
+                            m_SimulationRunning = false;
+                            if (m_Robot->setJointRotationFromWorldTransform(
+                                    m_SelectedLink,
+                                    m_RobotTransform,
+                                    jointFrame))
+                                m_AnimationStatus = "Rotated " + m_SelectedLink;
+                        }
                     }
                 }
 
@@ -1267,7 +1263,7 @@ namespace Mara
             return;
 
         ImGui::SetNextWindowSize(ImVec2(560.0f, 520.0f), ImGuiCond_FirstUseEver);
-        ImGui::Begin("Depth map", &m_ShowMap);
+        ImGui::Begin("Depth map", &m_ShowMap, ImGuiWindowFlags_NoTitleBar);
         drawPanelHeader("[M]", "DEPTH MAP", m_MapTopView ? "TOP VIEW" : "3D VIEW");
         if (ImGui::Button(m_MapTopView ? "Switch to 3D" : "Switch to top view"))
             m_MapTopView = !m_MapTopView;
@@ -1339,7 +1335,7 @@ namespace Mara
 
     void Editor::drawInspector()
     {
-        ImGui::Begin("Inspector");
+        ImGui::Begin("Inspector", nullptr, ImGuiWindowFlags_NoTitleBar);
 
         const std::string selectedName =
             m_SelectedLink.empty()
@@ -1414,7 +1410,8 @@ namespace Mara
 
         if (!ImGui::Begin(
                 "Animation",
-                &m_ShowAnimationPanel))
+                &m_ShowAnimationPanel,
+                ImGuiWindowFlags_NoTitleBar))
         {
             ImGui::End();
             return;
@@ -1565,6 +1562,47 @@ namespace Mara
                 m_AnimationTime,
                 m_AnimationDuration);
             ImGui::Checkbox("Loop playback", &m_LoopAnimation);
+        }
+
+        if (ImGui::CollapsingHeader(
+                "Right arm motor test",
+                ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            ImGui::TextDisabled(
+                "Motors 21-27 | provisional vendor units | range -180 to 180");
+            ImGui::Checkbox(
+                "Enable ROS command publishing",
+                &m_RightArmMotorPublishingEnabled);
+            const char *motorLabels[] = {
+                "Motor 21", "Motor 22", "Motor 23", "Motor 24",
+                "Motor 25", "Motor 26", "Motor 27"};
+            int motorIndex = m_RightArmMotorId - 21;
+            if (ImGui::Combo("Right arm motor", &motorIndex, motorLabels, 7))
+                m_RightArmMotorId = motorIndex + 21;
+            ImGui::BeginDisabled(!m_RightArmMotorPublishingEnabled);
+            const bool rightArmMotorChanged = ImGui::SliderFloat(
+                "Right arm position",
+                &m_RightArmMotorPosition,
+                -180.0f,
+                180.0f,
+                "%.1f");
+            ImGui::EndDisabled();
+            if (rightArmMotorChanged &&
+                m_RightArmMotorPublishingEnabled &&
+                m_TelemetryClient.connected())
+            {
+                if (m_TelemetryClient.publishRightArmMotorPosition(
+                        m_RightArmMotorId,
+                        m_RightArmMotorPosition))
+                    m_AnimationStatus = "Published right arm motor command";
+                else
+                    m_AnimationStatus =
+                        "Right arm motor command was not sent";
+            }
+            if (!m_TelemetryClient.connected())
+                ImGui::TextDisabled("Connect the ROS relay before publishing.");
+            ImGui::TextDisabled(
+                "Publishing also requires the relay --enable-command-publishing flag.");
         }
 
         if (ImGui::CollapsingHeader(
@@ -1744,7 +1782,7 @@ namespace Mara
         if (!m_ShowConsole)
             return;
 
-        ImGui::Begin("Console");
+        ImGui::Begin("Console", nullptr, ImGuiWindowFlags_NoTitleBar);
 
         drawPanelHeader("[!]", "DIAGNOSTICS", "LOCAL");
         ImGui::TextDisabled("OUTPUT");
@@ -1765,7 +1803,10 @@ namespace Mara
         if (!m_ShowTelemetry)
             return;
 
-        ImGui::Begin("Robot telemetry", &m_ShowTelemetry);
+        ImGui::Begin(
+            "Robot telemetry",
+            &m_ShowTelemetry,
+            ImGuiWindowFlags_NoTitleBar);
         drawPanelHeader(
             "[ROS]",
             "ROBOT TELEMETRY",
@@ -1809,11 +1850,12 @@ namespace Mara
              !health.bodyControlRunning ||
              !health.processRunning);
         ImGui::TextColored(
-            !live ? ImVec4(0.55f, 0.36f, 0.36f, 1.0f)
-                  : healthFault ? ImVec4(0.75f, 0.22f, 0.20f, 1.0f)
-                                : ImVec4(0.15f, 0.58f, 0.36f, 1.0f),
-            !live ? "HEALTH UNKNOWN"
-                  : healthFault ? "HEALTH FAULT DETECTED" : "HEALTH OK");
+            !live         ? ImVec4(0.55f, 0.36f, 0.36f, 1.0f)
+            : healthFault ? ImVec4(0.75f, 0.22f, 0.20f, 1.0f)
+                          : ImVec4(0.15f, 0.58f, 0.36f, 1.0f),
+            !live         ? "HEALTH UNKNOWN"
+            : healthFault ? "HEALTH FAULT DETECTED"
+                          : "HEALTH OK");
         ImGui::SameLine();
         ImGui::TextDisabled(
             "Motor faults: %zu",
@@ -1856,8 +1898,13 @@ namespace Mara
         if (ImGui::Button("Open motor telemetry"))
             m_ShowMotorTelemetryPanel = true;
         ImGui::SameLine();
+        if (ImGui::Button("ROS command console"))
+            m_ShowRosCommandConsole = true;
+        ImGui::SameLine();
         ImGui::TextDisabled("Open the full motor table in a floating panel.");
         ImGui::End();
+
+        drawRosCommandConsole();
 
         if (!m_ShowMotorTelemetryPanel)
             return;
@@ -1866,7 +1913,7 @@ namespace Mara
         ImGui::Begin(
             "Motor telemetry",
             &m_ShowMotorTelemetryPanel,
-            ImGuiWindowFlags_NoDocking);
+            ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar);
         drawPanelHeader(
             "[MOT]",
             "MOTOR TELEMETRY",
@@ -1928,6 +1975,112 @@ namespace Mara
         ImGui::End();
     }
 
+    void Editor::drawRosCommandConsole()
+    {
+        if (!m_ShowRosCommandConsole)
+            return;
+
+        static const char *topicLabels[] = {
+            "/arm/cmd_pos",
+            "/head/cmd_pos",
+            "/leg/cmd_pos",
+            "/waist/cmd_pos",
+            "/hric/robot/cmd_vel"};
+        static const char *topicTypes[] = {
+            "bodyctrl_msgs/msg/CmdSetMotorPosition",
+            "bodyctrl_msgs/msg/CmdSetMotorPosition",
+            "bodyctrl_msgs/msg/CmdSetMotorPosition",
+            "bodyctrl_msgs/msg/CmdSetMotorPosition",
+            "geometry_msgs/msg/Twist"};
+        const bool rightArmTopic = m_RosCommandTopicIndex == 0;
+        const bool live = m_TelemetryClient.connected() &&
+                          !m_TelemetryClient.stale();
+
+        ImGui::SetNextWindowSize(ImVec2(520.0f, 520.0f), ImGuiCond_FirstUseEver);
+        ImGui::Begin(
+            "ROS command console",
+            &m_ShowRosCommandConsole,
+            ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar);
+        drawPanelHeader(
+            "[TX]",
+            "ROS COMMAND CONSOLE",
+            live ? "LINK LIVE" : "LINK OFFLINE");
+
+        ImGui::TextWrapped(
+            "Stage a node, topic, and leaf value here before enabling a "
+            "publisher. This console does not send unsupported routes.");
+        ImGui::Spacing();
+
+        ImGui::TextUnformatted("Command route");
+        ImGui::Combo(
+            "Topic",
+            &m_RosCommandTopicIndex,
+            topicLabels,
+            IM_ARRAYSIZE(topicLabels));
+        ImGui::TextDisabled("Message: %s", topicTypes[m_RosCommandTopicIndex]);
+        ImGui::TextDisabled(
+            "Node: %s",
+            rightArmTopic ? "bodyctrl (supported test route)" : "not wired");
+        ImGui::Separator();
+
+        ImGui::TextUnformatted("Command leaf");
+        ImGui::BeginDisabled(!rightArmTopic);
+        const char *motorLabels[] = {
+            "Motor 21", "Motor 22", "Motor 23", "Motor 24",
+            "Motor 25", "Motor 26", "Motor 27"};
+        int motorIndex = m_RosCommandMotorId - 21;
+        motorIndex = std::clamp(motorIndex, 0, 6);
+        if (ImGui::Combo("motor_id", &motorIndex, motorLabels, 7))
+            m_RosCommandMotorId = motorIndex + 21;
+        ImGui::SliderFloat(
+            "position",
+            &m_RosCommandPosition,
+            -180.0f,
+            180.0f,
+            "%.1f");
+        ImGui::EndDisabled();
+        ImGui::TextDisabled(
+            "The current vendor test route accepts position values from -180 "
+            "to 180.");
+
+        ImGui::Separator();
+        ImGui::TextUnformatted("Safety gates");
+        ImGui::Text(
+            "Relay connection: %s",
+            live ? "connected" : "not connected");
+        ImGui::Text(
+            "UI publishing opt-in: %s",
+            m_RightArmMotorPublishingEnabled ? "enabled" : "disabled");
+        ImGui::TextDisabled(
+            "The relay must also be started with "
+            "--enable-command-publishing.");
+
+        const bool canPublish = rightArmTopic && live &&
+                                m_RightArmMotorPublishingEnabled;
+        ImGui::BeginDisabled(!canPublish);
+        if (ImGui::Button("Publish staged command"))
+        {
+            if (m_TelemetryClient.publishRightArmMotorPosition(
+                    m_RosCommandMotorId,
+                    m_RosCommandPosition))
+            {
+                m_AnimationStatus = "Published staged ROS command";
+            }
+            else
+            {
+                m_AnimationStatus = "Staged ROS command was not sent";
+            }
+        }
+        ImGui::EndDisabled();
+        if (!rightArmTopic)
+            ImGui::SameLine();
+        ImGui::TextDisabled(
+            rightArmTopic
+                ? "Only /arm/cmd_pos is currently wired."
+                : "This route is staged for a future message adapter.");
+        ImGui::End();
+    }
+
     void Editor::drawPosePanel()
     {
         if (!m_ShowPosePanel)
@@ -1938,7 +2091,7 @@ namespace Mara
         ImGui::Begin(
             "Camera preview",
             &m_ShowPosePanel,
-            ImGuiWindowFlags_NoDocking);
+            ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar);
 
         ImGui::TextColored(kViewportAccent, "[CAM]");
         ImGui::SameLine();
